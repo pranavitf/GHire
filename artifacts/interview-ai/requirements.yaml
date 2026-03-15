@@ -1,0 +1,21 @@
+packages:
+  "framer-motion": "For premium futuristic animations and transitions"
+  "react-dropzone": "For resume drag and drop"
+  "lucide-react": "Icons for UI"
+  "clsx": "Class merging"
+  "tailwind-merge": "Tailwind class merging"
+
+images:
+  - path: "artifacts/interview-ai/public/images/hero-bg.png"
+    description: "Deep space dark background with subtle neon cyan grid and glowing purple nebula dust, futuristic gaming style"
+    aspect_ratio: "16:9"
+  - path: "artifacts/interview-ai/public/images/avatar-placeholder.png"
+    description: "High-fidelity futuristic 3D avatar silhouette glowing with neon blue edge lighting, looking forward, dark background"
+    aspect_ratio: "1:1"
+  - path: "artifacts/interview-ai/public/images/badge-verified.png"
+    description: "Glowing green neon holographic shield emblem, anti-cheat verified gaming badge, isolated on transparent or dark background"
+    aspect_ratio: "1:1"
+
+notes:
+  - Implements UI matching the InterView.ai spec with a dark futuristic aesthetic.
+  - Uses @workspace/api-client-react hooks directly for all data fetching.

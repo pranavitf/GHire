@@ -1,15 +1,22 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: InterView.ai API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: resume
+    description: Resume upload and parsing
+  - name: sessions
+    description: Interview session management
+  - name: leaderboard
+    description: Social leaderboard and activity feed
+  - name: portfolio
+    description: Post-session spotlight portfolio
 paths:
   /healthz:
     get:
@@ -24,6 +31,237 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /resume/parse:
+    post:
+      operationId: parseResume
+      tags: [resume]
+      summary: Upload and parse a resume PDF
+      description: Accepts a base64-encoded PDF and returns structured candidate context JSON
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParseResumeRequest"
+      responses:
+        "200":
+          description: Parsed candidate context
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CandidateContext"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /sessions:
+    get:
+      operationId: listSessions
+      tags: [sessions]
+      summary: List interview sessions
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InterviewSession"
+    post:
+      operationId: createSession
+      tags: [sessions]
+      summary: Create a new interview session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSessionRequest"
+      responses:
+        "201":
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InterviewSession"
+
+  /sessions/{sessionId}:
+    get:
+      operationId: getSession
+      tags: [sessions]
+      summary: Get a specific session
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Session details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InterviewSession"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateSession
+      tags: [sessions]
+      summary: Update session (e.g. complete it, add proctoring flags)
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSessionRequest"
+      responses:
+        "200":
+          description: Updated session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InterviewSession"
+
+  /sessions/{sessionId}/evaluate:
+    post:
+      operationId: evaluateSession
+      tags: [sessions]
+      summary: Run AI evaluation of a completed session
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Evaluation results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionEvaluation"
+
+  /sessions/{sessionId}/gemini-token:
+    post:
+      operationId: getGeminiLiveToken
+      tags: [sessions]
+      summary: Get an ephemeral token for Gemini Live WebSocket connection
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GeminiTokenRequest"
+      responses:
+        "200":
+          description: Gemini Live connection details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeminiTokenResponse"
+
+  /leaderboard:
+    get:
+      operationId: getLeaderboard
+      tags: [leaderboard]
+      summary: Get ranked leaderboard
+      parameters:
+        - name: industry
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Leaderboard entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaderboardEntry"
+
+  /activity-feed:
+    get:
+      operationId: getActivityFeed
+      tags: [leaderboard]
+      summary: Get recent activity feed
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Activity feed items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityFeedItem"
+
+  /portfolio/{sessionId}:
+    get:
+      operationId: getPortfolio
+      tags: [portfolio]
+      summary: Get spotlight portfolio for a session
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Portfolio data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SpotlightPortfolio"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +272,386 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required:
+        - error
+        - message
+
+    ParseResumeRequest:
+      type: object
+      properties:
+        pdfBase64:
+          type: string
+          description: Base64-encoded PDF content
+        fileName:
+          type: string
+      required:
+        - pdfBase64
+
+    CandidateContext:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        summary:
+          type: string
+        experience:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkExperience"
+        education:
+          type: array
+          items:
+            $ref: "#/components/schemas/Education"
+        skills:
+          type: array
+          items:
+            type: string
+        targetRoles:
+          type: array
+          items:
+            type: string
+        industryField:
+          type: string
+        rawText:
+          type: string
+      required:
+        - id
+        - skills
+
+    WorkExperience:
+      type: object
+      properties:
+        company:
+          type: string
+        role:
+          type: string
+        duration:
+          type: string
+        highlights:
+          type: array
+          items:
+            type: string
+      required:
+        - company
+        - role
+
+    Education:
+      type: object
+      properties:
+        institution:
+          type: string
+        degree:
+          type: string
+        year:
+          type: string
+      required:
+        - institution
+        - degree
+
+    CreateSessionRequest:
+      type: object
+      properties:
+        userId:
+          type: string
+        userName:
+          type: string
+        industry:
+          type: string
+        jobTitle:
+          type: string
+        difficulty:
+          type: string
+          enum: [entry, mid, senior, executive]
+        sceneEnvironment:
+          type: string
+          enum: [boardroom, hospital, studio, tech, legal, finance]
+        candidateContextId:
+          type: string
+      required:
+        - userId
+        - userName
+        - industry
+        - jobTitle
+
+    UpdateSessionRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [active, completed, flagged, abandoned]
+        proctorFlags:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProctorFlag"
+        transcript:
+          type: array
+          items:
+            $ref: "#/components/schemas/TranscriptEntry"
+        overallScore:
+          type: number
+        durationSeconds:
+          type: integer
+
+    InterviewSession:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        userName:
+          type: string
+        industry:
+          type: string
+        jobTitle:
+          type: string
+        difficulty:
+          type: string
+        sceneEnvironment:
+          type: string
+        status:
+          type: string
+          enum: [active, completed, flagged, abandoned]
+        proctorFlags:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProctorFlag"
+        transcript:
+          type: array
+          items:
+            $ref: "#/components/schemas/TranscriptEntry"
+        overallScore:
+          type: number
+        durationSeconds:
+          type: integer
+        candidateContextId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - userName
+        - industry
+        - jobTitle
+        - status
+        - createdAt
+
+    ProctorFlag:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [gaze_away, external_voice, external_person, tab_switch, other]
+        timestamp:
+          type: number
+        description:
+          type: string
+        severity:
+          type: string
+          enum: [low, medium, high]
+      required:
+        - type
+        - timestamp
+        - severity
+
+    TranscriptEntry:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [ai, user]
+        content:
+          type: string
+        timestamp:
+          type: number
+      required:
+        - role
+        - content
+        - timestamp
+
+    SessionEvaluation:
+      type: object
+      properties:
+        sessionId:
+          type: string
+        overallScore:
+          type: number
+        categoryScores:
+          type: object
+          properties:
+            communication:
+              type: number
+            technicalKnowledge:
+              type: number
+            problemSolving:
+              type: number
+            professionalism:
+              type: number
+            culturalFit:
+              type: number
+        strengths:
+          type: array
+          items:
+            type: string
+        improvements:
+          type: array
+          items:
+            type: string
+        verdict:
+          type: string
+        verifiedClean:
+          type: boolean
+        evaluatedAt:
+          type: string
+          format: date-time
+      required:
+        - sessionId
+        - overallScore
+        - verifiedClean
+        - evaluatedAt
+
+    GeminiTokenRequest:
+      type: object
+      properties:
+        candidateContextId:
+          type: string
+        industry:
+          type: string
+        jobTitle:
+          type: string
+        difficulty:
+          type: string
+        sceneEnvironment:
+          type: string
+      required:
+        - industry
+        - jobTitle
+
+    GeminiTokenResponse:
+      type: object
+      properties:
+        apiKey:
+          type: string
+        baseUrl:
+          type: string
+        systemInstruction:
+          type: string
+        model:
+          type: string
+      required:
+        - apiKey
+        - baseUrl
+        - model
+        - systemInstruction
+
+    LeaderboardEntry:
+      type: object
+      properties:
+        rank:
+          type: integer
+        userId:
+          type: string
+        userName:
+          type: string
+        industry:
+          type: string
+        averageScore:
+          type: number
+        sessionsCompleted:
+          type: integer
+        verifiedSessions:
+          type: integer
+        bestScore:
+          type: number
+        avatarInitials:
+          type: string
+      required:
+        - rank
+        - userId
+        - userName
+        - industry
+        - averageScore
+        - sessionsCompleted
+
+    ActivityFeedItem:
+      type: object
+      properties:
+        id:
+          type: string
+        userName:
+          type: string
+        industry:
+          type: string
+        jobTitle:
+          type: string
+        score:
+          type: number
+        achievement:
+          type: string
+        emoji:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        verified:
+          type: boolean
+      required:
+        - id
+        - userName
+        - industry
+        - score
+        - timestamp
+        - verified
+
+    SpotlightPortfolio:
+      type: object
+      properties:
+        sessionId:
+          type: string
+        userName:
+          type: string
+        jobTitle:
+          type: string
+        industry:
+          type: string
+        completedAt:
+          type: string
+          format: date-time
+        evaluation:
+          $ref: "#/components/schemas/SessionEvaluation"
+        verifiedBadge:
+          type: boolean
+        proctorClean:
+          type: boolean
+        flagCount:
+          type: integer
+        shareableUrl:
+          type: string
+      required:
+        - sessionId
+        - userName
+        - jobTitle
+        - industry
+        - completedAt
+        - evaluation
+        - verifiedBadge
+        - proctorClean
+        - flagCount

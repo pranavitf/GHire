@@ -32,3 +32,4 @@ channel = "stable-25_05"
 
 [userenv.shared]
 Gemini_API_Key = "AIzaSyDKwMRslmOiZ7gEJPI4AFsOrdJw9ur0-ok"
+google_cloud_id = "project-99297e72-ae44-49d0-a20"

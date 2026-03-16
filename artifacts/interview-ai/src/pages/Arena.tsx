@@ -40,6 +40,18 @@ function pickBestMoments(entries: TranscriptEntry[], n = 3): TranscriptEntry[] {
     .slice(0, n);
 }
 
+const BODY_LANGUAGE_FLAGS: { pattern: RegExp; flag: string }[] = [
+  { pattern: /look(?:ing|s)?\s+away/i, flag: "Looking away from screen" },
+  { pattern: /off[- ]screen/i, flag: "Candidate looking off-screen" },
+  { pattern: /not\s+(?:making\s+)?(?:eye\s+)?contact/i, flag: "Poor eye contact detected" },
+  { pattern: /avoid(?:ing)?\s+eye/i, flag: "Avoiding eye contact" },
+  { pattern: /(?:reading|looking)\s+(?:from|at)\s+(?:another|a different|second)\s+screen/i, flag: "Possibly reading from another screen" },
+  { pattern: /someone\s+(?:else|in the background)/i, flag: "Another person detected in background" },
+  { pattern: /distracted/i, flag: "Candidate appears distracted" },
+  { pattern: /fidget(?:ing|y)/i, flag: "Candidate appears fidgety/nervous" },
+  { pattern: /not\s+(?:looking|facing)\s+(?:at\s+)?(?:the\s+)?(?:camera|screen)/i, flag: "Not facing camera" },
+];
+
 export default function Arena() {
   const { sessionId }   = useParams<{ sessionId: string }>();
   const [, setLocation] = useLocation();
@@ -80,6 +92,21 @@ export default function Arena() {
 
   useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
   useEffect(() => { return () => { isMounted.current = false; }; }, []);
+
+  const addFlag = useCallback((type: string, desc: string) => {
+    setFlags(prev => [...prev, { type, desc, ts: Date.now() }]);
+    setLastFlag(desc);
+    setTimeout(() => setLastFlag(null), 5000);
+  }, []);
+
+  const checkBodyLanguageFlags = useCallback((text: string) => {
+    for (const { pattern, flag } of BODY_LANGUAGE_FLAGS) {
+      if (pattern.test(text)) {
+        addFlag("body_language", flag);
+        break;
+      }
+    }
+  }, [addFlag]);
 
   const elapsed = totalSeconds - timeLeft;
 
@@ -239,17 +266,29 @@ export default function Arena() {
     if (!sess) return "";
     return `You are ARIA, an elite AI interview coach conducting a live voice interview for a ${sess.difficulty} level ${sess.jobTitle} position in the ${sess.industry} industry.
 
+QUESTION ORDER (follow this structure):
+1. Start with a warm greeting and immediately ask a rapport-building question (e.g., "Tell me about yourself" or "What got you interested in this field?").
+2. Follow with 1-2 questions about their past projects, accomplishments, and hands-on experience.
+3. Then move to 2-3 technical or domain-specific questions tailored to ${sess.jobTitle}.
+4. End with 1-2 situational or behavioral questions.
+
 BEHAVIOR:
-- Greet the candidate warmly and ask your first interview question immediately.
 - Ask ONE question at a time. Listen for their answer before asking the next.
 - Ask 5-8 well-chosen questions total, then end the interview professionally.
 - Tailor difficulty to ${sess.difficulty} level.
 - Keep responses short and natural — this is a real-time voice conversation.
 - Do NOT use markdown, lists, or bullet points — speak naturally.
 - The candidate has a code editor / whiteboard on the right side of their screen. If relevant to their profession, you may ask them to write code or notes there. You can see their screen via vision.
-- If you detect the candidate is distracted or off-topic, address it naturally.
 
-Start with a greeting and your first question the moment this session begins.`;
+BODY LANGUAGE & EYE TRACKING OBSERVATIONS:
+- You are receiving the candidate's webcam feed. Pay close attention to their body language and eye movements.
+- If you notice the candidate looking away from the screen frequently, mention it naturally (e.g., "I notice you seem to be looking at something off-screen — everything okay?").
+- If the candidate appears nervous, fidgety, or distracted, acknowledge it supportively.
+- When providing feedback between questions, briefly note positive body language (e.g., "Good eye contact" or "I can see you're thinking carefully").
+- Use phrases like "I notice", "I can see that", "Your body language suggests" when making observations.
+- Flag concerning behaviors by naturally weaving observations into conversation: looking away repeatedly, reading from another screen, someone else speaking in the background.
+
+Start with your greeting and first rapport question immediately — no delays.`;
   }, []);
 
   const handleLaunch = useCallback(async () => {
@@ -304,6 +343,7 @@ Start with a greeting and your first question the moment this session begins.`;
             playPCM(part.inlineData.data);
           }
           if (part.text?.trim()) {
+            checkBodyLanguageFlags(part.text);
             setTranscript(prev => {
               const last = prev[prev.length - 1];
               if (last && last.role === "ai" && Date.now() - last.ts < 2000) {
@@ -317,6 +357,7 @@ Start with a greeting and your first question the moment this session begins.`;
 
       const outTx = sc.outputTranscription as { text?: string } | undefined;
       if (outTx?.text?.trim()) {
+        checkBodyLanguageFlags(outTx.text!);
         setTranscript(prev => {
           const last = prev[prev.length - 1];
           if (last && last.role === "ai" && Date.now() - last.ts < 2000) {
@@ -445,7 +486,7 @@ Start with a greeting and your first question the moment this session begins.`;
               <p className="text-white/50 mt-3 text-sm">{session.jobTitle} · {session.industry} · {durationMin} min</p>
             </div>
             <p className="text-xs text-muted-foreground uppercase tracking-widest px-8 text-center max-w-sm">
-              Split-screen arena with code editor. ARIA will greet you and begin immediately.
+              Split-screen interview room with code editor. ARIA will greet you and begin immediately.
             </p>
             <button
               onClick={handleLaunch}

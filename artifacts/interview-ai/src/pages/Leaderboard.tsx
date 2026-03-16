@@ -78,7 +78,7 @@ export default function Leaderboard() {
                             <ShieldCheck className="w-4 h-4 text-green-500" />
                           ) : null}
                         </div>
-                        <p className="text-xs text-muted-foreground uppercase tracking-wider">{entry.industry} • {entry.sessionsCompleted} simulations</p>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">{entry.industry} • {entry.sessionsCompleted} interviews</p>
                       </div>
                       
                       <div className="text-right">

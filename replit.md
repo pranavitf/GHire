@@ -70,13 +70,12 @@ artifacts-monorepo/
 ## Frontend Pages
 
 - `/` — Hero page with GHire branding, animated split-screen demo, scrolling activity ticker
-- `/hub` — Career Hub with resume upload, simulation setup, and settings modal (profession + duration slider)
-- `/arena/:sessionId` — Split-screen Arena (50/50: avatar+webcam | code editor) with countdown timer, curveball injector, graceful exit
-- `/interview/:sessionId` — Legacy interview session room (full-screen avatar)
+- `/hub` — Career Hub with resume upload, interview setup, and settings modal (profession + duration slider)
+- `/interview/:sessionId` — Split-screen interview room (50/50: avatar+webcam | code editor) with countdown timer, curveball injector, body language detection, graceful exit
 - `/leaderboard` — Social leaderboard with live feed
 - `/portfolio/:sessionId` — Post-session spotlight portfolio with score ring, best moments, strengths/improvements
-- `/portfolio` — Candidate Hub dashboard with past scores, weakness coaching, shareable proof-of-work card
-- `/recruiter` — Recruiter God-Mode with candidate data table, search/filter, highlight playback modal
+- `/portfolio` — Candidate Hub dashboard (login-gated) with past scores, weakness coaching, functional share (copy link, export card image, LinkedIn share)
+- `/recruiter` — Recruiter dashboard (login-gated) with candidate table, search/filter, shortlist/selection, highlight playback, and full interview transcript viewer
 
 ## Key Features
 
@@ -88,10 +87,14 @@ artifacts-monorepo/
 - Countdown timer auto-ends session; curveball at halfway mark for 5+ min sessions
 - AI evaluation generates scores across 5 categories
 - Best moments extraction (top 3 longest user responses)
-- Proctoring flags tracked per session (gaze_away, external_voice, etc.)
+- Proctoring flags tracked per session (gaze_away, body_language, external_voice, etc.)
+- Real-time body language detection: AI text scanned for keywords (looking away, distracted, fidgety, etc.) → auto-creates proctor flags
+- ARIA interview flow: starts with rapport/project questions, then technical, then behavioral
 - Leaderboard auto-updates after session evaluation
 - Portfolio generated with "Verified Clean" anti-cheat badge
-- Recruiter dashboard with search, verified-only filter, and highlight modal
+- Portfolio/Recruiter pages gated behind simple login (name+email, stored in localStorage)
+- Functional share: copy link, export proof-of-work card as PNG, LinkedIn share
+- Recruiter dashboard with search, verified-only filter, shortlist/selection, highlight modal, and full transcript viewer
 
 ## Environment Variables
 

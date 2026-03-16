@@ -80,7 +80,7 @@ export default function CareerHub() {
     }, {
       onSuccess: (session) => {
         setShowModal(false);
-        setLocation(`/arena/${session.id}?duration=${formData.durationMinutes}`);
+        setLocation(`/interview/${session.id}?duration=${formData.durationMinutes}`);
       },
       onError: () => {
         toast({ title: "Error", description: "Failed to initialize engine.", variant: "destructive" });
@@ -92,7 +92,7 @@ export default function CareerHub() {
     <Layout>
       <div className="container mx-auto px-4 py-12">
         <h1 className="text-4xl font-black mb-2 text-glow-cyan">CAREER HUB</h1>
-        <p className="text-muted-foreground mb-12 uppercase tracking-widest text-sm font-semibold">Initialize your simulation context</p>
+        <p className="text-muted-foreground mb-12 uppercase tracking-widest text-sm font-semibold">Prepare your interview session</p>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="space-y-6">
@@ -166,7 +166,7 @@ export default function CareerHub() {
           <div className={`space-y-6 transition-opacity duration-500 ${step === 2 ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
             <div className="flex items-center gap-4 mb-4">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold font-display border ${step === 2 ? 'border-secondary bg-secondary/20 text-secondary' : 'border-muted text-muted'}`}>2</div>
-              <h2 className="text-xl text-white">Simulation Parameters</h2>
+              <h2 className="text-xl text-white">Interview Parameters</h2>
             </div>
             
             <GlowingCard glowColor="purple" className="p-6">
@@ -240,7 +240,7 @@ export default function CareerHub() {
                     <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
                     <span className="relative flex items-center justify-center gap-2">
                       <Play className="w-5 h-5 fill-current" />
-                      Start Simulation
+                      Start Interview
                     </span>
                   </button>
                 </div>
@@ -326,7 +326,7 @@ export default function CareerHub() {
                   ) : (
                     <span className="flex items-center justify-center gap-2">
                       <Play className="w-5 h-5 fill-current" />
-                      Enter Arena
+                      Begin Interview
                     </span>
                   )}
                 </button>

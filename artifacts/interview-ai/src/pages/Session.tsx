@@ -41,6 +41,18 @@ function pickBestMoments(entries: TranscriptEntry[], n = 3): TranscriptEntry[] {
     .slice(0, n);
 }
 
+const BODY_LANGUAGE_FLAGS: { pattern: RegExp; flag: string }[] = [
+  { pattern: /look(?:ing|s)?\s+away/i, flag: "Looking away from screen" },
+  { pattern: /off[- ]screen/i, flag: "Candidate looking off-screen" },
+  { pattern: /not\s+(?:making\s+)?(?:eye\s+)?contact/i, flag: "Poor eye contact detected" },
+  { pattern: /avoid(?:ing)?\s+eye/i, flag: "Avoiding eye contact" },
+  { pattern: /(?:reading|looking)\s+(?:from|at)\s+(?:another|a different|second)\s+screen/i, flag: "Possibly reading from another screen" },
+  { pattern: /someone\s+(?:else|in the background)/i, flag: "Another person detected in background" },
+  { pattern: /distracted/i, flag: "Candidate appears distracted" },
+  { pattern: /fidget(?:ing|y)/i, flag: "Candidate appears fidgety/nervous" },
+  { pattern: /not\s+(?:looking|facing)\s+(?:at\s+)?(?:the\s+)?(?:camera|screen)/i, flag: "Not facing camera" },
+];
+
 export default function Session() {
   const { sessionId }   = useParams<{ sessionId: string }>();
   const [, setLocation] = useLocation();
@@ -181,28 +193,48 @@ export default function Session() {
     } catch (e) { console.error("Mic error", e); }
   }, [isMicOn]);
 
-  // ── Flag helper ─────────────────────────────────────────────────────────
   const addFlag = useCallback((type: string, desc: string) => {
     setFlags(prev => [...prev, { type, desc, ts: Date.now() }]);
     setLastFlag(desc);
     setTimeout(() => setLastFlag(null), 5000);
   }, []);
 
+  const checkBodyLanguageFlags = useCallback((text: string) => {
+    for (const { pattern, flag } of BODY_LANGUAGE_FLAGS) {
+      if (pattern.test(text)) {
+        addFlag("body_language", flag);
+        break;
+      }
+    }
+  }, [addFlag]);
+
   // ── System instruction ──────────────────────────────────────────────────
   const buildInstruction = useCallback((sess: typeof session) => {
     if (!sess) return "";
     return `You are ARIA, an elite AI interview coach conducting a live voice interview for a ${sess.difficulty} level ${sess.jobTitle} position in the ${sess.industry} industry.
 
+QUESTION ORDER (follow this structure):
+1. Start with a warm greeting and immediately ask a rapport-building question (e.g., "Tell me about yourself" or "What got you interested in this field?").
+2. Follow with 1-2 questions about their past projects, accomplishments, and hands-on experience.
+3. Then move to 2-3 technical or domain-specific questions tailored to ${sess.jobTitle}.
+4. End with 1-2 situational or behavioral questions.
+
 BEHAVIOR:
-- Greet the candidate warmly and ask your first interview question immediately.
 - Ask ONE question at a time. Listen for their answer before asking the next.
-- Ask 5–8 well-chosen questions total, then end the interview professionally.
+- Ask 5-8 well-chosen questions total, then end the interview professionally.
 - Tailor difficulty to ${sess.difficulty} level.
 - Keep responses short and natural — this is a real-time voice conversation.
 - Do NOT use markdown, lists, or bullet points — speak naturally.
-- If you detect the candidate is distracted or off-topic, address it naturally.
 
-Start with a greeting and your first question the moment this session begins.`;
+BODY LANGUAGE & EYE TRACKING OBSERVATIONS:
+- You are receiving the candidate's webcam feed. Pay close attention to their body language and eye movements.
+- If you notice the candidate looking away from the screen frequently, mention it naturally.
+- If the candidate appears nervous, fidgety, or distracted, acknowledge it supportively.
+- When providing feedback between questions, briefly note positive body language.
+- Use phrases like "I notice", "I can see that", "Your body language suggests" when making observations.
+- Flag concerning behaviors naturally: looking away repeatedly, reading from another screen, someone else in background.
+
+Start with your greeting and first rapport question immediately — no delays.`;
   }, []);
 
   // ── MAIN CONNECT — called on user click ────────────────────────────────
@@ -260,10 +292,9 @@ Start with a greeting and your first question the moment this session begins.`;
           if (part.inlineData?.mimeType?.startsWith("audio/pcm") && part.inlineData.data) {
             playPCM(part.inlineData.data);
           }
-          // AI text response (some chunks include text alongside audio)
           if (part.text?.trim()) {
+            checkBodyLanguageFlags(part.text);
             setTranscript(prev => {
-              // Merge with last AI entry if very recent (streaming words)
               const last = prev[prev.length - 1];
               if (last && last.role === "ai" && Date.now() - last.ts < 2000) {
                 return [...prev.slice(0, -1), { ...last, text: last.text + " " + part.text!.trim() }];
@@ -274,9 +305,9 @@ Start with a greeting and your first question the moment this session begins.`;
         }
       }
 
-      // AI output transcription (if returned by API)
       const outTx = sc.outputTranscription as { text?: string } | undefined;
       if (outTx?.text?.trim()) {
+        checkBodyLanguageFlags(outTx.text!);
         setTranscript(prev => {
           const last = prev[prev.length - 1];
           if (last && last.role === "ai" && Date.now() - last.ts < 2000) {

@@ -5,7 +5,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 
 import Home from "./pages/Home";
 import CareerHub from "./pages/CareerHub";
-import Session from "./pages/Session";
 import Arena from "./pages/Arena";
 import Leaderboard from "./pages/Leaderboard";
 import Portfolio from "./pages/Portfolio";
@@ -27,8 +26,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/hub" component={CareerHub} />
-      <Route path="/arena/:sessionId" component={Arena} />
-      <Route path="/interview/:sessionId" component={Session} />
+      <Route path="/interview/:sessionId" component={Arena} />
       <Route path="/leaderboard" component={Leaderboard} />
       <Route path="/portfolio/:sessionId" component={Portfolio} />
       <Route path="/portfolio" component={PortfolioDashboard} />

@@ -76,8 +76,8 @@ export default function Home() {
                 transition={{ duration: 0.5, delay: 0.2 }}
                 className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto font-medium"
               >
-                Enter the immersive AI arena. Face our multimodal proctor. 
-                Prove your skills in high-stakes simulations across every industry.
+                The world's first AI-powered interview platform that sees, listens, and evaluates in real time.
+                Practice with ARIA, earn verified scores, and get discovered by top recruiters.
               </motion.p>
 
               <motion.div 
@@ -93,7 +93,7 @@ export default function Home() {
                   <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
                   <span className="relative flex items-center justify-center gap-2">
                     <Play className="w-5 h-5 fill-current" />
-                    Start Simulation
+                    Start Interview
                   </span>
                 </Link>
                 
@@ -120,7 +120,7 @@ export default function Home() {
                     <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
                     <div className="w-3 h-3 rounded-full bg-green-500/80" />
                   </div>
-                  <span className="text-[10px] text-white/40 uppercase tracking-widest ml-2">GHire Arena — Live Demo</span>
+                  <span className="text-[10px] text-white/40 uppercase tracking-widest ml-2">GHire Interview Room — Live Demo</span>
                   <div className="ml-auto flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                     <span className="text-[10px] text-green-400 uppercase tracking-wider font-bold">Live</span>

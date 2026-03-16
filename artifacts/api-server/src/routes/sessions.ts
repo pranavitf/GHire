@@ -115,6 +115,16 @@ router.post("/:sessionId/evaluate", async (req, res) => {
   const verifiedClean = flagCount === 0 || highSeverityFlags === 0;
 
   try {
+    const userLines = (session.transcript as Array<{ role: string; content: string }>)
+      .filter(t => t.role === "user")
+      .map(t => t.content)
+      .join("\n");
+
+    if (!userLines.trim()) {
+      res.status(400).json({ error: "no_candidate_responses", message: "No candidate responses found in transcript to evaluate." });
+      return;
+    }
+
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: [
@@ -122,30 +132,36 @@ router.post("/:sessionId/evaluate", async (req, res) => {
           role: "user",
           parts: [
             {
-              text: `You are an expert interview evaluator for ${session.industry} industry positions.
-Evaluate this ${session.difficulty} ${session.jobTitle} interview.
+              text: `You are a senior ${session.industry} hiring manager evaluating a CANDIDATE's performance in a ${session.difficulty}-level ${session.jobTitle} interview.
 
-TRANSCRIPT:
+IMPORTANT: Evaluate ONLY the CANDIDATE (the person being interviewed). Do NOT evaluate the interviewer or the AI. Focus entirely on the quality of the candidate's answers, communication, and fit.
+
+FULL INTERVIEW TRANSCRIPT (USER = candidate, AI = interviewer):
 ${transcriptText}
 
-PROCTORING: ${flagCount} flags detected (${highSeverityFlags} high severity)
+PROCTORING DATA: ${flagCount} integrity flags (${highSeverityFlags} high severity). ${verifiedClean ? "Candidate completed with integrity." : "Integrity concerns noted."}
 
-Provide a JSON evaluation:
+Score the CANDIDATE across these dimensions based on their responses:
+- communication: Clarity, articulation, confidence in speaking
+- technicalKnowledge: Depth and accuracy of technical/domain knowledge for ${session.jobTitle}
+- problemSolving: Analytical thinking, structured approaches, examples given
+- professionalism: Tone, composure, professionalism under pressure
+- culturalFit: Enthusiasm, values alignment, team-player signals
+
+Return ONLY valid JSON (no markdown, no backticks):
 {
-  "overallScore": 0-100,
+  "overallScore": <number 0-100>,
   "categoryScores": {
-    "communication": 0-100,
-    "technicalKnowledge": 0-100,
-    "problemSolving": 0-100,
-    "professionalism": 0-100,
-    "culturalFit": 0-100
+    "communication": <number>,
+    "technicalKnowledge": <number>,
+    "problemSolving": <number>,
+    "professionalism": <number>,
+    "culturalFit": <number>
   },
-  "strengths": ["strength 1", "strength 2", "strength 3"],
-  "improvements": ["area 1", "area 2", "area 3"],
-  "verdict": "One paragraph professional assessment"
-}
-
-Return ONLY valid JSON.`,
+  "strengths": ["<specific strength from candidate's actual answers>", "<strength 2>", "<strength 3>"],
+  "improvements": ["<specific area to improve based on what candidate said>", "<improvement 2>", "<improvement 3>"],
+  "verdict": "<2-3 sentence honest professional assessment of the CANDIDATE's performance, referencing specific things they said or did well/poorly>"
+}`,
             },
           ],
         },

@@ -212,7 +212,9 @@ BEGIN the interview immediately after this instruction ends. Your first message 
             responseModalities:  ["AUDIO"],
             speechConfig: {
               voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } }
-            }
+            },
+            inputAudioTranscription:  {},
+            outputAudioTranscription: {}
           },
           systemInstruction: { parts: [{ text: si }] }
         }
@@ -238,20 +240,26 @@ BEGIN the interview immediately after this instruction ends. Your first message 
       const sc = msg.serverContent as Record<string, unknown> | undefined;
       if (!sc) return;
 
-      // Audio / text parts
+      // AI audio + AI text transcript (outputAudioTranscription)
       const mt = sc.modelTurn as { parts?: Array<{ inlineData?: { mimeType?: string; data?: string }; text?: string }> } | undefined;
       if (mt?.parts) {
         for (const part of mt.parts) {
           if (part.inlineData?.mimeType?.startsWith("audio/pcm") && part.inlineData.data) {
             playPCM(part.inlineData.data);
           }
-          if (part.text) {
-            setTranscript(prev => [...prev, { role: "ai", text: part.text!, ts: Date.now() }]);
-            if (/look|away|note|cheat|distract/i.test(part.text)) {
-              addFlag("gaze_away", part.text.slice(0, 80));
-            }
-          }
         }
+      }
+
+      // AI speech transcription (what ARIA said in text)
+      const outTx = sc.outputTranscription as { text?: string } | undefined;
+      if (outTx?.text) {
+        setTranscript(prev => [...prev, { role: "ai", text: outTx.text!, ts: Date.now() }]);
+      }
+
+      // User speech transcription (what the candidate said in text)
+      const inTx = sc.inputTranscription as { text?: string } | undefined;
+      if (inTx?.text?.trim()) {
+        setTranscript(prev => [...prev, { role: "user", text: inTx.text!.trim(), ts: Date.now() }]);
       }
 
       // Interrupt signal

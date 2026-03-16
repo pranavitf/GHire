@@ -3,7 +3,7 @@
 ## Overview
 
 GHire is a premium, immersive AI-powered competitive hiring platform. Features a dark futuristic UI with:
-- Split-screen Arena interview room with code editor/whiteboard and 3D avatar
+- Split-screen interview room with code editor/whiteboard and 3D avatar
 - Gemini Live WebSocket voice conversations with real-time vision (reads code on screen)
 - Countdown timer with curveball stress injection at halfway mark
 - Gemini AI-powered resume parsing and interview evaluation

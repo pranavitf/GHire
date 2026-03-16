@@ -116,10 +116,14 @@ router.post("/:sessionId/evaluate", async (req, res) => {
     .filter(t => t.content.startsWith("[BEST_MOMENT]:"))
     .map(t => t.content.replace("[BEST_MOMENT]: ", "").trim());
 
-  const proctorFlags = session.proctorFlags as Array<{ type: string; severity: string }>;
+  const proctorFlags = session.proctorFlags as Array<{ type: string; severity: string; description?: string }>;
   const flagCount = proctorFlags?.length ?? 0;
   const highSeverityFlags = proctorFlags?.filter(f => f.severity === "high").length ?? 0;
   const verifiedClean = flagCount === 0 || highSeverityFlags === 0;
+
+  const flagDetails = proctorFlags?.length > 0
+    ? proctorFlags.map((f, i) => `${i + 1}. [${f.type}/${f.severity}] ${f.description || "No description"}`).join("\n")
+    : "None";
 
   const userResponses = fullTranscript.filter(t => t.role === "user" && !t.content.startsWith("[BEST_MOMENT]"));
   const hasResponses  = userResponses.length > 0;
@@ -143,7 +147,11 @@ CRITICAL INSTRUCTION: Evaluate ONLY the CANDIDATE (USER lines). Do NOT evaluate 
 ${hasResponses ? `FULL TRANSCRIPT (USER = candidate, AI = interviewer):\n${transcriptText}` : `NOTE: No verbal responses were captured. Score conservatively at 45/100 for participation but deduct for lack of substantive answers.`}
 ${bestMomentsSection}
 
-PROCTORING: ${flagCount} integrity flags (${highSeverityFlags} high severity). ${verifiedClean ? "Clean session." : "Integrity concerns."}
+PROCTORING STATUS: ${flagCount} integrity flags detected (${highSeverityFlags} high severity). ${verifiedClean ? "Clean session." : "Integrity concerns detected."}
+PROCTOR FLAG DETAILS:
+${flagDetails}
+
+IMPORTANT: Review the proctor flags above carefully. If there are body language flags (e.g., looking away, fidgeting, distraction, poor eye contact), include a body language assessment. If there are possible cheating indicators (e.g., reading from another screen, another person detected, external voice), include a cheating risk assessment. Factor these into your overall score and verdict.
 
 Return ONLY valid JSON (no markdown):
 {
@@ -158,7 +166,9 @@ Return ONLY valid JSON (no markdown):
   "strengths": ["<what the candidate did well, citing specific answers>", "<strength 2>", "<strength 3>"],
   "improvements": ["<specific coaching tip based on candidate's actual responses>", "<tip 2>", "<tip 3>"],
   "bestMoments": ${bestMoments.length > 0 ? `["${bestMoments[0]?.slice(0, 100) ?? ""}"]` : "[]"},
-  "verdict": "<2-3 sentences assessing the CANDIDATE only, referencing specific things they said>"
+  "verdict": "<2-3 sentences assessing the CANDIDATE only, referencing specific things they said>",
+  "integrityNotes": "<If proctor flags exist, summarize the integrity/cheating concerns here. If no flags, say 'No integrity concerns detected. Session verified clean.'>",
+  "bodyLanguageNotes": "<If body language flags exist, describe the candidate's body language and demeanor observations. If no body language flags, say 'Body language appeared appropriate throughout the interview.'>"
 }`,
             },
           ],

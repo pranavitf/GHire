@@ -20,7 +20,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center border border-primary/50 group-hover:box-glow-cyan transition-all">
               <Zap className="w-5 h-5 text-primary" />
             </div>
-            <span className="font-display font-bold text-xl tracking-widest text-glow-cyan">G<span className="text-white">HIRE</span></span>
+            <span className="font-display font-bold text-xl tracking-widest text-glow-cyan">G <span className="text-white">HIRE</span></span>
           </Link>
 
           <nav className="hidden md:flex items-center gap-8">

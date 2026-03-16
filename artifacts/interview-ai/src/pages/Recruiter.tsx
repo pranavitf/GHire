@@ -2,72 +2,65 @@ import { Layout } from "@/components/Layout";
 import { AuthGate, getAuthUser, logout } from "@/components/AuthGate";
 import { motion, AnimatePresence } from "framer-motion";
 import { GlowingCard } from "@/components/GlowingCard";
-import { Shield, ShieldCheck, ShieldAlert, Play, X, Search, Filter, Users, Eye, LogOut, Star, StarOff, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
-import { useState, useCallback } from "react";
+import { Shield, ShieldCheck, ShieldAlert, Play, X, Search, Filter, Users, Eye, LogOut, Star, StarOff, MessageSquare, ChevronDown, ChevronUp, Activity } from "lucide-react";
+import { useState, useCallback, useMemo } from "react";
 import { useLocation } from "wouter";
+import { useListSessions } from "@workspace/api-client-react";
 
-const MOCK_CANDIDATES = [
-  { id: "c1", name: "Sarah Mitchell", profession: "B2B Sales Executive", score: 94, verified: true, antiCheat: "clean", highlight: "\"Our team closed $4.2M in Q3 by restructuring the pipeline funnel. I personally managed the top 12 enterprise accounts and implemented a consultative selling framework that reduced our sales cycle by 35%.\"", transcript: [
-    { role: "ai" as const, text: "Welcome Sarah! Tell me about yourself and what drew you to B2B sales.", ts: 5 },
-    { role: "user" as const, text: "Thank you! I've been in enterprise sales for about 7 years now. What really drew me in was the strategic aspect — understanding complex organizations and figuring out how to create value for them.", ts: 38 },
-    { role: "ai" as const, text: "I can see you're very confident — great eye contact. Tell me about your biggest deal.", ts: 72 },
-    { role: "user" as const, text: "Our team closed $4.2M in Q3 by restructuring the pipeline funnel. I personally managed the top 12 enterprise accounts and implemented a consultative selling framework that reduced our sales cycle by 35%.", ts: 115 },
-    { role: "ai" as const, text: "Impressive metrics. How do you handle objections from C-level stakeholders?", ts: 148 },
-    { role: "user" as const, text: "I focus on understanding their pain points first. I never pitch features — I map our solution to their strategic priorities. For C-level, it's always about ROI and risk mitigation.", ts: 190 },
-  ]},
-  { id: "c2", name: "James Kim", profession: "Emergency Room Nurse", score: 88, verified: true, antiCheat: "clean", highlight: "\"When the patient went into cardiac arrest, I initiated the code blue protocol, started CPR immediately, and prepared the crash cart. We achieved ROSC within 4 minutes — the attending said it was one of the fastest responses she'd seen.\"", transcript: [
-    { role: "ai" as const, text: "Hi James, welcome. What made you choose emergency nursing?", ts: 5 },
-    { role: "user" as const, text: "I love the intensity and the fact that every shift is different. You never know what's coming through those doors, and I thrive in that environment.", ts: 42 },
-    { role: "ai" as const, text: "Tell me about a critical moment where your quick thinking saved a patient.", ts: 78 },
-    { role: "user" as const, text: "When the patient went into cardiac arrest, I initiated the code blue protocol, started CPR immediately, and prepared the crash cart. We achieved ROSC within 4 minutes — the attending said it was one of the fastest responses she'd seen.", ts: 125 },
-  ]},
-  { id: "c3", name: "Priya Raghavan", profession: "Full-Stack Engineer", score: 91, verified: false, antiCheat: "1 flag", highlight: "\"I designed the event-driven microservices architecture using Kafka for async communication. The system handles 50K requests per second with p99 latency under 200ms. I also implemented circuit breakers to handle cascading failures gracefully.\"", transcript: [
-    { role: "ai" as const, text: "Welcome Priya. Tell me about a system you've designed that you're proud of.", ts: 5 },
-    { role: "user" as const, text: "I designed the event-driven microservices architecture using Kafka for async communication. The system handles 50K requests per second with p99 latency under 200ms. I also implemented circuit breakers to handle cascading failures gracefully.", ts: 50 },
-    { role: "ai" as const, text: "I notice you seem to be looking at something off-screen — everything okay?", ts: 95 },
-    { role: "user" as const, text: "Oh sorry, I was checking my architecture diagram. Let me focus back.", ts: 112 },
-  ]},
-  { id: "c4", name: "Marcus Lewis", profession: "M&A Attorney", score: 97, verified: true, antiCheat: "clean", highlight: "\"In the Delaware Chancery case, I identified a material adverse change clause that the opposing counsel had overlooked. This gave us leverage to renegotiate the purchase price by $18M, and ultimately we structured a more favorable earnout provision for our client.\"", transcript: [
-    { role: "ai" as const, text: "Marcus, welcome. What's your area of specialization in M&A law?", ts: 5 },
-    { role: "user" as const, text: "I specialize in cross-border M&A transactions, particularly in the technology sector. I've handled deals ranging from $50M to over $2B.", ts: 35 },
-    { role: "ai" as const, text: "Excellent composure. Walk me through your most complex negotiation.", ts: 68 },
-    { role: "user" as const, text: "In the Delaware Chancery case, I identified a material adverse change clause that the opposing counsel had overlooked. This gave us leverage to renegotiate the purchase price by $18M, and ultimately we structured a more favorable earnout provision for our client.", ts: 120 },
-  ]},
-  { id: "c5", name: "Elena Volkov", profession: "Data Scientist", score: 85, verified: true, antiCheat: "clean", highlight: "\"I built an ensemble model combining gradient boosting and neural collaborative filtering that improved recommendation accuracy by 23%. We A/B tested it against the production model and saw a 15% lift in user engagement within the first two weeks.\"", transcript: [
-    { role: "ai" as const, text: "Elena, tell me about yourself and your data science journey.", ts: 5 },
-    { role: "user" as const, text: "I started in pure mathematics and transitioned to data science about 5 years ago. I love the intersection of statistical rigor and real-world impact.", ts: 40 },
-    { role: "ai" as const, text: "What's the most impactful model you've built?", ts: 75 },
-    { role: "user" as const, text: "I built an ensemble model combining gradient boosting and neural collaborative filtering that improved recommendation accuracy by 23%. We A/B tested it against the production model and saw a 15% lift in user engagement within the first two weeks.", ts: 130 },
-  ]},
-  { id: "c6", name: "David Chen", profession: "ICU Nurse", score: 92, verified: false, antiCheat: "2 flags", highlight: "\"Managing a ventilated patient post-cardiac surgery, I noticed subtle changes in the arterial waveform that suggested early tamponade. I immediately escalated to the surgeon, and the patient was taken back for emergency re-exploration within 30 minutes.\"", transcript: [
-    { role: "ai" as const, text: "David, what's your experience in critical care?", ts: 5 },
-    { role: "user" as const, text: "I've been in the ICU for 6 years, specializing in post-surgical cardiac patients. I'm CCRN certified and have experience with ECMO and IABP.", ts: 45 },
-    { role: "ai" as const, text: "I notice you appear distracted and someone else seems to be in the background. Can you tell me about a critical clinical situation?", ts: 88 },
-    { role: "user" as const, text: "Managing a ventilated patient post-cardiac surgery, I noticed subtle changes in the arterial waveform that suggested early tamponade. I immediately escalated to the surgeon, and the patient was taken back for emergency re-exploration within 30 minutes.", ts: 145 },
-  ]},
-  { id: "c7", name: "Aisha Tanaka", profession: "Product Manager", score: 89, verified: true, antiCheat: "clean", highlight: "\"I led the launch of our AI-powered search feature from concept to GA in 4 months. We used rapid prototyping with weekly user testing — the feature drove a 40% increase in search conversion and became the #1 feature request fulfilled that quarter.\"", transcript: [
-    { role: "ai" as const, text: "Aisha, welcome! What got you into product management?", ts: 5 },
-    { role: "user" as const, text: "I was originally an engineer but found I was most energized when talking to users and shaping product strategy. The transition felt natural.", ts: 35 },
-    { role: "ai" as const, text: "Tell me about a product you launched that you're proud of.", ts: 70 },
-    { role: "user" as const, text: "I led the launch of our AI-powered search feature from concept to GA in 4 months. We used rapid prototyping with weekly user testing — the feature drove a 40% increase in search conversion and became the #1 feature request fulfilled that quarter.", ts: 118 },
-  ]},
-  { id: "c8", name: "Ryan Park", profession: "Quantitative Analyst", score: 96, verified: true, antiCheat: "clean", highlight: "\"I developed a volatility surface model using stochastic local vol that reduced our options pricing error by 60 basis points. The model was adopted across the derivatives desk and contributed to $12M in additional P&L from improved hedging efficiency.\"", transcript: [
-    { role: "ai" as const, text: "Ryan, tell me about your quantitative background.", ts: 5 },
-    { role: "user" as const, text: "I have a PhD in computational mathematics from MIT. I've been working in quantitative finance for 4 years, focusing on derivatives pricing and risk models.", ts: 42 },
-    { role: "ai" as const, text: "Walk me through your most significant model contribution.", ts: 80 },
-    { role: "user" as const, text: "I developed a volatility surface model using stochastic local vol that reduced our options pricing error by 60 basis points. The model was adopted across the derivatives desk and contributed to $12M in additional P&L from improved hedging efficiency.", ts: 135 },
-  ]},
-];
+type CandidateRow = {
+  id: string;
+  name: string;
+  profession: string;
+  score: number;
+  verified: boolean;
+  antiCheat: string;
+  highlight: string;
+  transcript: { role: "ai" | "user"; text: string; ts: number }[];
+};
 
 function RecruiterContent() {
   const [, setLocation] = useLocation();
-  const [selectedCandidate, setSelectedCandidate] = useState<typeof MOCK_CANDIDATES[0] | null>(null);
+  const [selectedCandidate, setSelectedCandidate] = useState<CandidateRow | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterVerified, setFilterVerified] = useState(false);
   const [shortlist, setShortlist] = useState<Set<string>>(new Set());
   const [showTranscript, setShowTranscript] = useState(false);
   const [showShortlistOnly, setShowShortlistOnly] = useState(false);
   const user = getAuthUser("recruiter");
+
+  const { data: rawSessions, isLoading: sessionsLoading } = useListSessions(
+    {},
+    { query: { refetchInterval: 15000 } }
+  );
+
+  const candidates: CandidateRow[] = useMemo(() => {
+    if (!rawSessions) return [];
+    return rawSessions
+      .filter((s: { status?: string; overallScore?: number | null }) => s.status === "completed" && s.overallScore != null)
+      .map((s: { id: string; userName: string; jobTitle: string; overallScore?: number | null; proctorFlags?: unknown[]; transcript?: unknown[] }) => {
+        const flags = (s.proctorFlags ?? []) as { type: string; description?: string; severity?: string }[];
+        const flagCount = flags.length;
+        const verified = flagCount === 0;
+        const tx = (s.transcript ?? []) as { role: string; content: string; timestamp?: number }[];
+        const txFiltered = tx.filter(t => !t.content.startsWith("[BEST_MOMENT]"));
+        const userResponses = txFiltered.filter(t => t.role === "user");
+        const longestResponse = userResponses.sort((a, b) => (b.content?.length ?? 0) - (a.content?.length ?? 0))[0];
+        return {
+          id: s.id,
+          name: s.userName,
+          profession: s.jobTitle,
+          score: Math.round(s.overallScore ?? 0),
+          verified,
+          antiCheat: verified ? "clean" : `${flagCount} flag${flagCount > 1 ? "s" : ""}`,
+          highlight: longestResponse ? `"${longestResponse.content}"` : "No highlight available.",
+          transcript: txFiltered.map((t, i) => ({
+            role: t.role as "ai" | "user",
+            text: t.content,
+            ts: t.timestamp ? Math.floor((t.timestamp - (txFiltered[0]?.timestamp ?? t.timestamp)) / 1000) : i * 30,
+          })),
+        };
+      });
+  }, [rawSessions]);
 
   const toggleShortlist = useCallback((id: string) => {
     setShortlist(prev => {
@@ -78,7 +71,7 @@ function RecruiterContent() {
     });
   }, []);
 
-  const filtered = MOCK_CANDIDATES.filter(c => {
+  const filtered = candidates.filter(c => {
     if (filterVerified && !c.verified) return false;
     if (showShortlistOnly && !shortlist.has(c.id)) return false;
     if (searchQuery && !c.name.toLowerCase().includes(searchQuery.toLowerCase()) && !c.profession.toLowerCase().includes(searchQuery.toLowerCase())) return false;
@@ -111,7 +104,7 @@ function RecruiterContent() {
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-3">
               <div className="text-right">
-                <div className="text-3xl font-display font-black text-white">{MOCK_CANDIDATES.length}</div>
+                <div className="text-3xl font-display font-black text-white">{candidates.length}</div>
                 <div className="text-[10px] text-muted-foreground uppercase tracking-widest">Candidates</div>
               </div>
               <div className="w-px h-10 bg-white/20" />
@@ -121,7 +114,7 @@ function RecruiterContent() {
               </div>
               <div className="w-px h-10 bg-white/20" />
               <div className="text-right">
-                <div className="text-3xl font-display font-black text-green-400">{MOCK_CANDIDATES.filter(c => c.verified).length}</div>
+                <div className="text-3xl font-display font-black text-green-400">{candidates.filter(c => c.verified).length}</div>
                 <div className="text-[10px] text-muted-foreground uppercase tracking-widest">Verified</div>
               </div>
             </div>
@@ -231,9 +224,19 @@ function RecruiterContent() {
             </motion.div>
           ))}
 
-          {filtered.length === 0 && (
+          {sessionsLoading && (
+            <div className="p-12 flex items-center justify-center">
+              <Activity className="w-8 h-8 text-primary animate-pulse" />
+            </div>
+          )}
+
+          {!sessionsLoading && filtered.length === 0 && (
             <div className="p-12 text-center">
-              <p className="text-muted-foreground">No candidates match your filters.</p>
+              <p className="text-muted-foreground">
+                {candidates.length === 0
+                  ? "No completed interviews yet. Candidates will appear here after they finish interviewing."
+                  : "No candidates match your filters."}
+              </p>
             </div>
           )}
         </div>

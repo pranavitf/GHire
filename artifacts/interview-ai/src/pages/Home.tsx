@@ -59,7 +59,7 @@ export default function Home() {
                 transition={{ duration: 0.5, delay: 0.1 }}
                 className="text-5xl md:text-7xl font-black mb-4 leading-tight text-transparent bg-clip-text bg-gradient-to-r from-white via-primary/80 to-secondary"
               >
-                GHIRE
+                G HIRE
               </motion.h1>
               <motion.p
                 initial={{ opacity: 0, y: 20 }}
@@ -77,7 +77,7 @@ export default function Home() {
                 className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto font-medium"
               >
                 The world's first AI-powered interview platform that sees, listens, and evaluates in real time.
-                Practice with ARIA, earn verified scores, and get discovered by top recruiters.
+                Practice with ARIA, earn verified scores, climb the live leaderboard, and get discovered by top recruiters.
               </motion.p>
 
               <motion.div 
@@ -120,7 +120,7 @@ export default function Home() {
                     <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
                     <div className="w-3 h-3 rounded-full bg-green-500/80" />
                   </div>
-                  <span className="text-[10px] text-white/40 uppercase tracking-widest ml-2">GHire Interview Room — Live Demo</span>
+                  <span className="text-[10px] text-white/40 uppercase tracking-widest ml-2">G Hire Interview Room — Live Demo</span>
                   <div className="ml-auto flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                     <span className="text-[10px] text-green-400 uppercase tracking-wider font-bold">Live</span>

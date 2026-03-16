@@ -278,7 +278,8 @@ BEHAVIOR:
 - Tailor difficulty to ${sess.difficulty} level.
 - Keep responses short and natural — this is a real-time voice conversation.
 - Do NOT use markdown, lists, or bullet points — speak naturally.
-- The candidate has a code editor / whiteboard on the right side of their screen. If relevant to their profession, you may ask them to write code or notes there. You can see their screen via vision.
+- The candidate has a code editor / whiteboard on the right side of their screen. You can see their screen via vision.
+- You MUST ask at least one question that requires the candidate to use the whiteboard/code editor. For technical roles, ask them to write code or pseudocode. For non-technical roles, ask them to outline a framework, draw a process flow, or map out a strategy on the whiteboard. Explicitly tell them to use the whiteboard when you ask this question (e.g., "Please use the whiteboard on the right to sketch out your approach").
 
 BODY LANGUAGE & EYE TRACKING OBSERVATIONS:
 - You are receiving the candidate's webcam feed. Pay close attention to their body language and eye movements.
@@ -330,6 +331,15 @@ Start with your greeting and first rapport question immediately — no delays.`;
         setLiveStatus("connected");
         await startMic();
         await startCam();
+        ws.send(JSON.stringify({
+          clientContent: {
+            turns: [{
+              role: "user",
+              parts: [{ text: "[SYSTEM DIRECTIVE - NOT FROM CANDIDATE]: The interview has just started. Introduce yourself as ARIA immediately and begin with your warm greeting and first rapport-building question. Do not wait — start speaking now." }]
+            }],
+            turnComplete: true
+          }
+        }));
         return;
       }
 

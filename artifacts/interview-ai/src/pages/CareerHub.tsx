@@ -8,6 +8,7 @@ import { useParseResume, useCreateSession } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import type { CandidateContext } from "@workspace/api-client-react/src/generated/api.schemas";
 import { motion, AnimatePresence } from "framer-motion";
+import { getAuthUser } from "@/components/AuthGate";
 
 export default function CareerHub() {
   const [, setLocation] = useLocation();
@@ -67,10 +68,11 @@ export default function CareerHub() {
   };
 
   const handleStartInterview = () => {
+    const authUser = getAuthUser("candidate");
     createMutation.mutate({
       data: {
-        userId: "user_123",
-        userName: candidateData?.name || "Guest Candidate",
+        userId: authUser?.email || "guest@ghire.app",
+        userName: authUser?.name || candidateData?.name || "Guest Candidate",
         industry: formData.industry,
         jobTitle: formData.jobTitle,
         difficulty: formData.difficulty,

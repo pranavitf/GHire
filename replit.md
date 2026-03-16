@@ -1,8 +1,8 @@
-# GHire — The Universal Hiring Network
+# G Hire — The Universal Hiring Network
 
 ## Overview
 
-GHire is a premium, immersive AI-powered competitive hiring platform. Features a dark futuristic UI with:
+G Hire is a premium, immersive AI-powered competitive hiring platform. Features a dark futuristic UI with:
 - Split-screen interview room with code editor/whiteboard and 3D avatar
 - Gemini Live WebSocket voice conversations with real-time vision (reads code on screen)
 - Countdown timer with curveball stress injection at halfway mark
@@ -69,7 +69,7 @@ artifacts-monorepo/
 
 ## Frontend Pages
 
-- `/` — Hero page with GHire branding, animated split-screen demo, scrolling activity ticker
+- `/` — Hero page with G Hire branding, animated split-screen demo, scrolling activity ticker, leaderboard mention
 - `/hub` — Career Hub with resume upload, interview setup, and settings modal (profession + duration slider)
 - `/interview/:sessionId` — Split-screen interview room (50/50: avatar+webcam | code editor) with countdown timer, curveball injector, body language detection, graceful exit
 - `/leaderboard` — Social leaderboard with live feed
@@ -85,14 +85,19 @@ artifacts-monorepo/
 - Vision AI: webcam + code editor captured as frames sent to Gemini
 - Browser SpeechRecognition API captures user speech as text transcript
 - Countdown timer auto-ends session; curveball at halfway mark for 5+ min sessions
-- AI evaluation generates scores across 5 categories
+- AI evaluation generates scores across 5 categories + integrity/body language assessment
 - Best moments extraction (top 3 longest user responses)
 - Proctoring flags tracked per session (gaze_away, body_language, external_voice, etc.)
 - Real-time body language detection: AI text scanned for keywords (looking away, distracted, fidgety, etc.) → auto-creates proctor flags
-- ARIA interview flow: starts with rapport/project questions, then technical, then behavioral
+- ARIA interview flow: starts with rapport/project questions, then technical (must include whiteboard question), then behavioral
+- ARIA introduces itself immediately on interview start (no idle delay)
+- Evaluation report includes integrity assessment (cheating risk) and body language analysis sections
 - Leaderboard auto-updates after session evaluation
-- Portfolio generated with "Verified Clean" anti-cheat badge
+- Portfolio generated with "Verified Clean" anti-cheat badge, integrity notes, and body language notes
 - Portfolio/Recruiter pages gated behind simple login (name+email, stored in localStorage)
+- Candidate portal shows per-user sessions (filtered by login email as userId)
+- Recruiter dashboard loads real completed sessions from database (auto-refreshes every 15s)
+- Sessions use logged-in candidate's email as userId for proper data segregation
 - Functional share: copy link, export proof-of-work card as PNG, LinkedIn share
 - Recruiter dashboard with search, verified-only filter, shortlist/selection, highlight modal, and full transcript viewer
 

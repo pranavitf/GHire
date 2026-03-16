@@ -3,25 +3,21 @@ import { AuthGate, getAuthUser, logout } from "@/components/AuthGate";
 import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { GlowingCard } from "@/components/GlowingCard";
-import { useGetLeaderboard } from "@workspace/api-client-react";
+import { useListSessions } from "@workspace/api-client-react";
 import { Trophy, ShieldCheck, ChevronRight, Share2, Award, Target, Activity, LogOut, Copy, Check, Download, ExternalLink } from "lucide-react";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 
-const MOCK_SESSIONS = [
-  { id: "s1", jobTitle: "Senior Software Engineer", industry: "Technology", score: 88, date: "2026-03-14", verified: true, difficulty: "senior" },
-  { id: "s2", jobTitle: "Product Manager", industry: "Technology", score: 76, date: "2026-03-12", verified: true, difficulty: "mid" },
-  { id: "s3", jobTitle: "Data Scientist", industry: "Technology", score: 92, date: "2026-03-10", verified: false, difficulty: "senior" },
-  { id: "s4", jobTitle: "DevOps Engineer", industry: "Technology", score: 71, date: "2026-03-08", verified: true, difficulty: "entry" },
-];
+type SessionItem = {
+  id: string;
+  jobTitle: string;
+  industry: string;
+  score: number;
+  date: string;
+  verified: boolean;
+  difficulty: string;
+};
 
-const MOCK_WEAKNESSES = [
-  "Practice structuring answers using the STAR method for behavioral questions.",
-  "Deepen knowledge of system design patterns — particularly distributed caching and message queues.",
-  "Work on reducing filler words ('um', 'like') during high-pressure scenarios.",
-  "Prepare concrete metrics and impact data for past project accomplishments.",
-];
-
-function ShareMenu({ session, onClose }: { session: typeof MOCK_SESSIONS[0]; onClose: () => void }) {
+function ShareMenu({ session, onClose }: { session: SessionItem; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
   const user = getAuthUser("candidate");
 
@@ -53,7 +49,7 @@ function ShareMenu({ session, onClose }: { session: typeof MOCK_SESSIONS[0]; onC
 
     ctx.fillStyle = "#00c8ff";
     ctx.font = "bold 14px sans-serif";
-    ctx.fillText("GHIRE · PROOF OF WORK", 40, 60);
+    ctx.fillText("G HIRE · PROOF OF WORK", 40, 60);
 
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 28px sans-serif";
@@ -83,7 +79,7 @@ function ShareMenu({ session, onClose }: { session: typeof MOCK_SESSIONS[0]; onC
     ctx.fillText(`${session.date} · ghire.app`, 40, 360);
 
     const link = document.createElement("a");
-    link.download = `ghire-${session.jobTitle.replace(/\s+/g, "-").toLowerCase()}-${session.score}.png`;
+    link.download = `g-hire-${session.jobTitle.replace(/\s+/g, "-").toLowerCase()}-${session.score}.png`;
     link.href = canvas.toDataURL("image/png");
     link.click();
   }, [session, user]);
@@ -102,7 +98,7 @@ function ShareMenu({ session, onClose }: { session: typeof MOCK_SESSIONS[0]; onC
         <div className="flex items-center justify-center gap-1 text-[10px] text-green-400 uppercase tracking-widest">
           <ShieldCheck className="w-3 h-3" /> Anti-Cheat Verified
         </div>
-        <p className="text-[9px] text-white/30 mt-2 uppercase tracking-widest">GHire Proof of Work</p>
+        <p className="text-[9px] text-white/30 mt-2 uppercase tracking-widest">G Hire Proof of Work</p>
       </div>
       <div className="space-y-2">
         <button
@@ -137,8 +133,30 @@ function DashboardContent() {
   const [, setLocation] = useLocation();
   const [shareOpen, setShareOpen] = useState<string | null>(null);
   const user = getAuthUser("candidate");
-  const avgScore = Math.round(MOCK_SESSIONS.reduce((a, s) => a + s.score, 0) / MOCK_SESSIONS.length);
-  const verifiedCount = MOCK_SESSIONS.filter(s => s.verified).length;
+  const { data: rawSessions, isLoading: sessionsLoading } = useListSessions(
+    { userId: user?.email || "" },
+    { query: { enabled: !!user?.email } }
+  );
+
+  const sessions: SessionItem[] = useMemo(() => {
+    if (!rawSessions) return [];
+    return rawSessions
+      .filter((s: { status?: string }) => s.status === "completed")
+      .map((s: { id: string; jobTitle: string; industry: string; overallScore?: number | null; completedAt?: string | null; proctorFlags?: unknown[]; difficulty?: string | null }) => ({
+        id: s.id,
+        jobTitle: s.jobTitle,
+        industry: s.industry,
+        score: Math.round(s.overallScore ?? 0),
+        date: s.completedAt ? new Date(s.completedAt).toISOString().slice(0, 10) : "N/A",
+        verified: !s.proctorFlags || (s.proctorFlags as unknown[]).length === 0,
+        difficulty: s.difficulty ?? "mid",
+      }));
+  }, [rawSessions]);
+
+  const avgScore = sessions.length > 0
+    ? Math.round(sessions.reduce((a, s) => a + s.score, 0) / sessions.length)
+    : 0;
+  const verifiedCount = sessions.filter(s => s.verified).length;
 
   const handleLogout = () => {
     logout("candidate");
@@ -185,7 +203,22 @@ function DashboardContent() {
               <Trophy className="w-5 h-5 text-primary" /> Past Interview Scores
             </h2>
 
-            {MOCK_SESSIONS.map((sess, i) => (
+            {sessionsLoading && (
+              <div className="flex items-center justify-center py-12">
+                <Activity className="w-8 h-8 text-primary animate-pulse" />
+              </div>
+            )}
+
+            {!sessionsLoading && sessions.length === 0 && (
+              <GlowingCard className="p-8 text-center">
+                <p className="text-muted-foreground mb-4">No completed interviews yet.</p>
+                <Link href="/hub" className="text-primary font-bold uppercase tracking-widest text-sm hover:underline">
+                  Start Your First Interview →
+                </Link>
+              </GlowingCard>
+            )}
+
+            {sessions.map((sess, i) => (
               <motion.div key={sess.id}
                 initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: i * 0.1 }}
@@ -226,17 +259,26 @@ function DashboardContent() {
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
               <GlowingCard className="p-6" glowColor="purple">
                 <h3 className="font-bold text-sm text-secondary uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <Target className="w-4 h-4" /> Weaknesses to Improve
+                  <Target className="w-4 h-4" /> Tips to Improve
                 </h3>
                 <div className="space-y-4">
-                  {MOCK_WEAKNESSES.map((w, i) => (
-                    <div key={i} className="flex gap-3 items-start">
-                      <div className="w-5 h-5 rounded-full bg-secondary/20 flex items-center justify-center shrink-0 mt-0.5">
-                        <span className="text-[10px] font-bold text-secondary">{i + 1}</span>
+                  {sessions.length === 0 ? (
+                    <p className="text-sm text-gray-500">Complete your first interview to get personalized coaching tips.</p>
+                  ) : (
+                    [
+                      "Practice structuring answers using the STAR method for behavioral questions.",
+                      "Maintain consistent eye contact with the camera during responses.",
+                      "Prepare concrete metrics and impact data for past accomplishments.",
+                      "Use the whiteboard effectively when asked to demonstrate your thinking.",
+                    ].map((w, i) => (
+                      <div key={i} className="flex gap-3 items-start">
+                        <div className="w-5 h-5 rounded-full bg-secondary/20 flex items-center justify-center shrink-0 mt-0.5">
+                          <span className="text-[10px] font-bold text-secondary">{i + 1}</span>
+                        </div>
+                        <p className="text-sm text-gray-300 leading-relaxed">{w}</p>
                       </div>
-                      <p className="text-sm text-gray-300 leading-relaxed">{w}</p>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </GlowingCard>
             </motion.div>
@@ -248,13 +290,13 @@ function DashboardContent() {
                 <p className="text-xs text-muted-foreground mb-4">Export a verified card for LinkedIn or your personal portfolio</p>
                 <div className="bg-black/60 border border-primary/30 rounded-xl p-5">
                   <p className="font-bold text-white">{user?.name || "Guest Candidate"}</p>
-                  <p className="text-xs text-muted-foreground">Senior Software Engineer</p>
+                  <p className="text-xs text-muted-foreground">{sessions[0]?.jobTitle || "Interview Candidate"}</p>
                   <p className="text-4xl font-display font-black text-primary my-2">{avgScore}/100</p>
                   <div className="flex items-center justify-center gap-1.5 text-xs text-green-400">
                     <ShieldCheck className="w-3.5 h-3.5" />
                     <span className="font-bold uppercase tracking-widest">Anti-Cheat Verified</span>
                   </div>
-                  <p className="text-[9px] text-white/20 mt-3 uppercase tracking-widest">GHire · The Universal Hiring Network</p>
+                  <p className="text-[9px] text-white/20 mt-3 uppercase tracking-widest">G Hire · The Universal Hiring Network</p>
                 </div>
               </div>
             </motion.div>

@@ -2,9 +2,9 @@ import { useParams, Link } from "wouter";
 import { Layout } from "@/components/Layout";
 import { useGetPortfolio } from "@workspace/api-client-react";
 import {
-  ShieldCheck, Target, CheckCircle2, ChevronRight,
+  ShieldCheck, ShieldAlert, Target, CheckCircle2, ChevronRight,
   Activity, Share2, Star, Zap, TrendingUp, Award,
-  Copy, Check, Download, ExternalLink
+  Copy, Check, Download, ExternalLink, AlertTriangle, Eye
 } from "lucide-react";
 import { GlowingCard } from "@/components/GlowingCard";
 import { motion, AnimatePresence } from "framer-motion";
@@ -45,7 +45,7 @@ export default function Portfolio() {
 
     ctx.fillStyle = "#00c8ff";
     ctx.font = "bold 14px sans-serif";
-    ctx.fillText("GHIRE · PROOF OF WORK", 40, 60);
+    ctx.fillText("G HIRE · PROOF OF WORK", 40, 60);
 
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 28px sans-serif";
@@ -75,7 +75,7 @@ export default function Portfolio() {
     ctx.fillText("ghire.app", 40, 360);
 
     const link = document.createElement("a");
-    link.download = `ghire-${portfolio.jobTitle.replace(/\s+/g, "-").toLowerCase()}-${score}.png`;
+    link.download = `g-hire-${portfolio.jobTitle.replace(/\s+/g, "-").toLowerCase()}-${score}.png`;
     link.href = canvas.toDataURL("image/png");
     link.click();
   }, [portfolio]);
@@ -114,6 +114,8 @@ export default function Portfolio() {
   const { evaluation } = portfolio;
   const score = evaluation.overallScore ?? 0;
   const bestMoments: string[] = (evaluation as unknown as { bestMoments?: string[] }).bestMoments ?? [];
+  const integrityNotes: string = (evaluation as unknown as { integrityNotes?: string }).integrityNotes ?? "";
+  const bodyLanguageNotes: string = (evaluation as unknown as { bodyLanguageNotes?: string }).bodyLanguageNotes ?? "";
 
   const scoreColor = score >= 80 ? "text-green-400" : score >= 60 ? "text-primary" : "text-yellow-400";
   const scoreGlow  = score >= 80 ? "rgba(74,222,128,1)" : score >= 60 ? "rgba(0,240,255,1)" : "rgba(251,191,36,1)";
@@ -268,6 +270,32 @@ export default function Portfolio() {
                 </ul>
               </div>
             </motion.div>
+            {(integrityNotes || bodyLanguageNotes) && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
+                className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {integrityNotes && (
+                  <div className="bg-black/40 border border-white/10 rounded-xl p-6">
+                    <h3 className="font-bold text-lg text-white mb-4 flex items-center gap-2">
+                      {portfolio.verifiedBadge
+                        ? <ShieldCheck className="w-5 h-5 text-green-500" />
+                        : <ShieldAlert className="w-5 h-5 text-yellow-500" />
+                      }
+                      Integrity Assessment
+                    </h3>
+                    <p className="text-sm text-gray-300 leading-relaxed">{integrityNotes}</p>
+                  </div>
+                )}
+                {bodyLanguageNotes && (
+                  <div className="bg-black/40 border border-white/10 rounded-xl p-6">
+                    <h3 className="font-bold text-lg text-white mb-4 flex items-center gap-2">
+                      <Eye className="w-5 h-5 text-primary" />
+                      Body Language Analysis
+                    </h3>
+                    <p className="text-sm text-gray-300 leading-relaxed">{bodyLanguageNotes}</p>
+                  </div>
+                )}
+              </motion.div>
+            )}
           </div>
 
           {/* ─── Right 1/3 ─── */}

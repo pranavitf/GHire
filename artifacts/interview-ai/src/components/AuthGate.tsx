@@ -99,7 +99,7 @@ export function AuthGate({ role, children }: AuthGateProps) {
           </button>
 
           <p className="text-[10px] text-white/20 text-center uppercase tracking-widest">
-            GHire · The Universal Hiring Network
+            G Hire · The Universal Hiring Network
           </p>
         </div>
       </motion.div>

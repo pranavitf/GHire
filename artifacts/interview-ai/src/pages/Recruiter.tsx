@@ -351,7 +351,7 @@ function RecruiterContent() {
                 )}
               </AnimatePresence>
 
-              <p className="text-[10px] text-white/20 text-center mt-4 uppercase tracking-widest">GHire · The Universal Hiring Network</p>
+              <p className="text-[10px] text-white/20 text-center mt-4 uppercase tracking-widest">G Hire · The Universal Hiring Network</p>
             </motion.div>
           </motion.div>
         )}

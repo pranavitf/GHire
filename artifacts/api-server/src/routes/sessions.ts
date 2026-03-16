@@ -105,25 +105,29 @@ router.post("/:sessionId/evaluate", async (req, res) => {
     return;
   }
 
-  const transcriptText = (session.transcript as Array<{ role: string; content: string }>)
+  const fullTranscript = session.transcript as Array<{ role: string; content: string }>;
+  const transcriptText = fullTranscript
+    .filter(t => !t.content.startsWith("[BEST_MOMENT]:"))
     .map(t => `${t.role.toUpperCase()}: ${t.content}`)
     .join("\n") || "No transcript available";
+
+  // Extract best moments injected by the frontend
+  const bestMoments = fullTranscript
+    .filter(t => t.content.startsWith("[BEST_MOMENT]:"))
+    .map(t => t.content.replace("[BEST_MOMENT]: ", "").trim());
 
   const proctorFlags = session.proctorFlags as Array<{ type: string; severity: string }>;
   const flagCount = proctorFlags?.length ?? 0;
   const highSeverityFlags = proctorFlags?.filter(f => f.severity === "high").length ?? 0;
   const verifiedClean = flagCount === 0 || highSeverityFlags === 0;
 
-  try {
-    const userLines = (session.transcript as Array<{ role: string; content: string }>)
-      .filter(t => t.role === "user")
-      .map(t => t.content)
-      .join("\n");
+  const userResponses = fullTranscript.filter(t => t.role === "user" && !t.content.startsWith("[BEST_MOMENT]"));
+  const hasResponses  = userResponses.length > 0;
 
-    if (!userLines.trim()) {
-      res.status(400).json({ error: "no_candidate_responses", message: "No candidate responses found in transcript to evaluate." });
-      return;
-    }
+  try {
+    const bestMomentsSection = bestMoments.length > 0
+      ? `\n\nCANDIDATE'S BEST MOMENTS (strongest responses by length/detail):\n${bestMoments.map((m, i) => `${i + 1}. "${m}"`).join("\n")}`
+      : "";
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
@@ -134,33 +138,27 @@ router.post("/:sessionId/evaluate", async (req, res) => {
             {
               text: `You are a senior ${session.industry} hiring manager evaluating a CANDIDATE's performance in a ${session.difficulty}-level ${session.jobTitle} interview.
 
-IMPORTANT: Evaluate ONLY the CANDIDATE (the person being interviewed). Do NOT evaluate the interviewer or the AI. Focus entirely on the quality of the candidate's answers, communication, and fit.
+CRITICAL INSTRUCTION: Evaluate ONLY the CANDIDATE (USER lines). Do NOT evaluate the AI interviewer. Score is based entirely on what the candidate said and how they answered.
 
-FULL INTERVIEW TRANSCRIPT (USER = candidate, AI = interviewer):
-${transcriptText}
+${hasResponses ? `FULL TRANSCRIPT (USER = candidate, AI = interviewer):\n${transcriptText}` : `NOTE: No verbal responses were captured. Score conservatively at 45/100 for participation but deduct for lack of substantive answers.`}
+${bestMomentsSection}
 
-PROCTORING DATA: ${flagCount} integrity flags (${highSeverityFlags} high severity). ${verifiedClean ? "Candidate completed with integrity." : "Integrity concerns noted."}
+PROCTORING: ${flagCount} integrity flags (${highSeverityFlags} high severity). ${verifiedClean ? "Clean session." : "Integrity concerns."}
 
-Score the CANDIDATE across these dimensions based on their responses:
-- communication: Clarity, articulation, confidence in speaking
-- technicalKnowledge: Depth and accuracy of technical/domain knowledge for ${session.jobTitle}
-- problemSolving: Analytical thinking, structured approaches, examples given
-- professionalism: Tone, composure, professionalism under pressure
-- culturalFit: Enthusiasm, values alignment, team-player signals
-
-Return ONLY valid JSON (no markdown, no backticks):
+Return ONLY valid JSON (no markdown):
 {
-  "overallScore": <number 0-100>,
+  "overallScore": <0-100>,
   "categoryScores": {
-    "communication": <number>,
-    "technicalKnowledge": <number>,
-    "problemSolving": <number>,
-    "professionalism": <number>,
-    "culturalFit": <number>
+    "communication": <0-100>,
+    "technicalKnowledge": <0-100>,
+    "problemSolving": <0-100>,
+    "professionalism": <0-100>,
+    "culturalFit": <0-100>
   },
-  "strengths": ["<specific strength from candidate's actual answers>", "<strength 2>", "<strength 3>"],
-  "improvements": ["<specific area to improve based on what candidate said>", "<improvement 2>", "<improvement 3>"],
-  "verdict": "<2-3 sentence honest professional assessment of the CANDIDATE's performance, referencing specific things they said or did well/poorly>"
+  "strengths": ["<what the candidate did well, citing specific answers>", "<strength 2>", "<strength 3>"],
+  "improvements": ["<specific coaching tip based on candidate's actual responses>", "<tip 2>", "<tip 3>"],
+  "bestMoments": ${bestMoments.length > 0 ? `["${bestMoments[0]?.slice(0, 100) ?? ""}"]` : "[]"},
+  "verdict": "<2-3 sentences assessing the CANDIDATE only, referencing specific things they said>"
 }`,
             },
           ],

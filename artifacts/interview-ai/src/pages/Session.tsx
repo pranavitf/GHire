@@ -3,21 +3,18 @@ import { useParams, useLocation } from "wouter";
 import {
   Mic, MicOff, Video, VideoOff, PhoneOff,
   AlertTriangle, Activity, Wifi, WifiOff,
-  MessageSquare, Shield, ShieldAlert, Play
+  MessageSquare, Shield, ShieldAlert, Play, Star
 } from "lucide-react";
 import { useGetSession, useUpdateSession, useEvaluateSession } from "@workspace/api-client-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-// ─── Types ─────────────────────────────────────────────────────────────────
-type TranscriptEntry = { role: "ai" | "user"; text: string; ts: number };
+type TranscriptEntry = { role: "ai" | "user"; text: string; ts: number; wordCount?: number };
 type LiveStatus = "idle" | "connecting" | "connected" | "error" | "disconnected";
 
-// ─── Constants ─────────────────────────────────────────────────────────────
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string;
 const GEMINI_MODEL   = "models/gemini-2.5-flash-native-audio-latest";
 const WS_URL = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${GEMINI_API_KEY}`;
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
 function pcmToBase64(i16: Int16Array): string {
   const bytes = new Uint8Array(i16.buffer);
   let s = "";
@@ -26,14 +23,9 @@ function pcmToBase64(i16: Int16Array): string {
 }
 
 function resampleTo16k(f32: Float32Array, fromRate: number): Int16Array {
-  if (fromRate === 16000) {
-    const out = new Int16Array(f32.length);
-    for (let i = 0; i < f32.length; i++) out[i] = Math.max(-32768, Math.min(32767, f32[i] * 32768));
-    return out;
-  }
-  const ratio   = fromRate / 16000;
-  const outLen  = Math.floor(f32.length / ratio);
-  const out     = new Int16Array(outLen);
+  const ratio  = fromRate / 16000;
+  const outLen = Math.floor(f32.length / ratio);
+  const out    = new Int16Array(outLen);
   for (let i = 0; i < outLen; i++) {
     const src = f32[Math.floor(i * ratio)];
     out[i] = Math.max(-32768, Math.min(32767, src * 32768));
@@ -41,50 +33,60 @@ function resampleTo16k(f32: Float32Array, fromRate: number): Int16Array {
   return out;
 }
 
-// ─── Component ──────────────────────────────────────────────────────────────
+// Pick the top N user responses by word count as "best moments"
+function pickBestMoments(entries: TranscriptEntry[], n = 3): TranscriptEntry[] {
+  return [...entries]
+    .filter(e => e.role === "user" && (e.wordCount ?? 0) >= 5)
+    .sort((a, b) => (b.wordCount ?? 0) - (a.wordCount ?? 0))
+    .slice(0, n);
+}
+
 export default function Session() {
-  const { sessionId }  = useParams<{ sessionId: string }>();
+  const { sessionId }   = useParams<{ sessionId: string }>();
   const [, setLocation] = useLocation();
 
-  const webcamRef   = useRef<HTMLVideoElement>(null);
-  const wsRef       = useRef<WebSocket | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const micSrcRef   = useRef<MediaStreamAudioSourceNode | null>(null);
-  const processorRef = useRef<ScriptProcessorNode | null>(null);
-  const micStreamRef = useRef<MediaStream | null>(null);
-  const camStreamRef = useRef<MediaStream | null>(null);
+  const webcamRef     = useRef<HTMLVideoElement>(null);
+  const wsRef         = useRef<WebSocket | null>(null);
+  const audioCtxRef   = useRef<AudioContext | null>(null);
+  const micSrcRef     = useRef<MediaStreamAudioSourceNode | null>(null);
+  const processorRef  = useRef<ScriptProcessorNode | null>(null);
+  const micStreamRef  = useRef<MediaStream | null>(null);
+  const camStreamRef  = useRef<MediaStream | null>(null);
   const frameTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const scheduledEndRef = useRef<number>(0);   // for gapless audio scheduling
-  const isMountedRef    = useRef(true);
+  const scheduledEnd  = useRef<number>(0);
+  const isMounted     = useRef(true);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   const { data: session, isLoading } = useGetSession(sessionId || "");
   const updateMutation   = useUpdateSession();
   const evaluateMutation = useEvaluateSession();
 
-  const [time,        setTime]        = useState(0);
-  const [liveStatus,  setLiveStatus]  = useState<LiveStatus>("idle");
-  const [transcript,  setTranscript]  = useState<TranscriptEntry[]>([]);
-  const [aiSpeaking,  setAiSpeaking]  = useState(false);
-  const [isMicOn,     setIsMicOn]     = useState(false);
-  const [isCamOn,     setIsCamOn]     = useState(false);
-  const [flags,       setFlags]       = useState<{ type: string; desc: string; ts: number }[]>([]);
-  const [lastFlag,    setLastFlag]    = useState<string | null>(null);
-  const [launched,    setLaunched]    = useState(false);   // gate: user must click START
+  const [time,       setTime]       = useState(0);
+  const [liveStatus, setLiveStatus] = useState<LiveStatus>("idle");
+  const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
+  const [aiSpeaking, setAiSpeaking] = useState(false);
+  const [isMicOn,    setIsMicOn]    = useState(false);
+  const [isCamOn,    setIsCamOn]    = useState(false);
+  const [flags,      setFlags]      = useState<{ type: string; desc: string; ts: number }[]>([]);
+  const [lastFlag,   setLastFlag]   = useState<string | null>(null);
+  const [launched,   setLaunched]   = useState(false);
+  const transcriptRef = useRef<TranscriptEntry[]>([]);   // always-fresh ref for handleEnd
 
-  // Timer (only while connected)
+  // Keep ref in sync
+  useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
+  useEffect(() => { return () => { isMounted.current = false; }; }, []);
+
+  // Timer
   useEffect(() => {
     if (!launched) return;
     const t = setInterval(() => setTime(v => v + 1), 1000);
     return () => clearInterval(t);
   }, [launched]);
 
-  useEffect(() => { return () => { isMountedRef.current = false; }; }, []);
-
-  // ── Audio output: play PCM chunks from Gemini ────────────────────────────
+  // ── Audio output ────────────────────────────────────────────────────────
   const playPCM = useCallback((raw: string) => {
     const ctx = audioCtxRef.current;
-    if (!ctx) return;
-
+    if (!ctx || ctx.state === "closed") return;
     const binary = atob(raw);
     const i16    = new Int16Array(binary.length / 2);
     for (let i = 0; i < i16.length; i++) {
@@ -92,31 +94,25 @@ export default function Session() {
     }
     const f32 = new Float32Array(i16.length);
     for (let i = 0; i < i16.length; i++) f32[i] = i16[i] / 32768;
-
     const buf = ctx.createBuffer(1, f32.length, 24000);
     buf.copyToChannel(f32, 0);
-
     const src = ctx.createBufferSource();
     src.buffer = buf;
     src.connect(ctx.destination);
-
     const now   = ctx.currentTime;
-    const start = Math.max(now, scheduledEndRef.current);
+    const start = Math.max(now, scheduledEnd.current);
     src.start(start);
-    scheduledEndRef.current = start + buf.duration;
-
+    scheduledEnd.current = start + buf.duration;
     setAiSpeaking(true);
     src.onended = () => {
-      if (scheduledEndRef.current <= ctx.currentTime + 0.05) setAiSpeaking(false);
+      if (scheduledEnd.current <= (audioCtxRef.current?.currentTime ?? 0) + 0.05) setAiSpeaking(false);
     };
   }, []);
 
-  // ── Webcam ───────────────────────────────────────────────────────────────
+  // ── Webcam ──────────────────────────────────────────────────────────────
   const startCam = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 320, height: 240, facingMode: "user" }, audio: false
-      });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240, facingMode: "user" }, audio: false });
       camStreamRef.current = stream;
       if (webcamRef.current) webcamRef.current.srcObject = stream;
       setIsCamOn(true);
@@ -133,10 +129,10 @@ export default function Session() {
     } catch (e) { console.warn("Cam unavailable", e); }
   }, []);
 
-  // ── Microphone ───────────────────────────────────────────────────────────
+  // ── Microphone + Speech Recognition ────────────────────────────────────
   const startMic = useCallback(async () => {
     const ctx = audioCtxRef.current;
-    if (!ctx) return;
+    if (!ctx || ctx.state === "closed") return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       micStreamRef.current = stream;
@@ -157,50 +153,71 @@ export default function Session() {
       source.connect(processor);
       processor.connect(ctx.destination);
       setIsMicOn(true);
-    } catch (e) { console.error("Mic error", e); }
-  }, []);
 
-  // ── Flag helper ──────────────────────────────────────────────────────────
+      // ── Browser speech recognition for user transcription ──────────────
+      const SpeechRecognitionAPI = (window as unknown as { SpeechRecognition?: typeof SpeechRecognition; webkitSpeechRecognition?: typeof SpeechRecognition }).SpeechRecognition
+        ?? (window as unknown as { webkitSpeechRecognition?: typeof SpeechRecognition }).webkitSpeechRecognition;
+      if (SpeechRecognitionAPI) {
+        const recognition = new SpeechRecognitionAPI();
+        recognition.continuous      = true;
+        recognition.interimResults  = false;
+        recognition.lang            = "en-US";
+        recognitionRef.current      = recognition;
+        recognition.onresult = (ev) => {
+          for (let i = ev.resultIndex; i < ev.results.length; i++) {
+            if (ev.results[i].isFinal) {
+              const text      = ev.results[i][0].transcript.trim();
+              const wordCount = text.split(/\s+/).length;
+              if (text.length > 3) {
+                setTranscript(prev => [...prev, { role: "user", text, ts: Date.now(), wordCount }]);
+              }
+            }
+          }
+        };
+        recognition.onerror = (e) => { if (e.error !== "no-speech") console.warn("SR error", e.error); };
+        recognition.onend   = () => { if (isMounted.current && isMicOn) recognition.start(); };
+        recognition.start();
+      }
+    } catch (e) { console.error("Mic error", e); }
+  }, [isMicOn]);
+
+  // ── Flag helper ─────────────────────────────────────────────────────────
   const addFlag = useCallback((type: string, desc: string) => {
     setFlags(prev => [...prev, { type, desc, ts: Date.now() }]);
     setLastFlag(desc);
     setTimeout(() => setLastFlag(null), 5000);
   }, []);
 
-  // ── Build system instruction ─────────────────────────────────────────────
+  // ── System instruction ──────────────────────────────────────────────────
   const buildInstruction = useCallback((sess: typeof session) => {
     if (!sess) return "";
-    return `You are ARIA, an elite AI interview coach conducting a professional ${sess.difficulty} level ${sess.jobTitle} interview in the ${sess.industry} industry.
+    return `You are ARIA, an elite AI interview coach conducting a live voice interview for a ${sess.difficulty} level ${sess.jobTitle} position in the ${sess.industry} industry.
 
-RULES:
-- Start by warmly greeting the candidate and immediately asking your first interview question.
-- Ask ONE question at a time. Wait for the response before continuing.
-- Ask 5-8 questions total, then conclude the interview professionally.
-- Adapt difficulty to ${sess.difficulty} level.
-- If the candidate goes off-topic, redirect politely.
-- Keep responses concise and natural — this is a voice interview.
-- Do NOT narrate actions or say things like "I will now ask...". Just ask.
-- Use natural speech patterns, no bullet points or markdown in responses.
+BEHAVIOR:
+- Greet the candidate warmly and ask your first interview question immediately.
+- Ask ONE question at a time. Listen for their answer before asking the next.
+- Ask 5–8 well-chosen questions total, then end the interview professionally.
+- Tailor difficulty to ${sess.difficulty} level.
+- Keep responses short and natural — this is a real-time voice conversation.
+- Do NOT use markdown, lists, or bullet points — speak naturally.
+- If you detect the candidate is distracted or off-topic, address it naturally.
 
-BEGIN the interview immediately after this instruction ends. Your first message should be a greeting and first question.`;
+Start with a greeting and your first question the moment this session begins.`;
   }, []);
 
-  // ── MAIN CONNECT — called on user click (satisfies browser autoplay policy) ──
+  // ── MAIN CONNECT — called on user click ────────────────────────────────
   const handleLaunch = useCallback(async () => {
     if (!session) return;
-    if (!GEMINI_API_KEY) {
-      alert("Gemini API key is missing. Check your environment configuration.");
-      return;
-    }
+    if (!GEMINI_API_KEY) { alert("Gemini API key is missing."); return; }
+
     setLaunched(true);
     setLiveStatus("connecting");
 
-    // Create AudioContext INSIDE user gesture handler
+    // AudioContext MUST be created inside a user gesture
     const ctx = new AudioContext();
     audioCtxRef.current = ctx;
     if (ctx.state === "suspended") await ctx.resume();
 
-    const si = buildInstruction(session);
     const ws = new WebSocket(WS_URL);
     wsRef.current = ws;
 
@@ -209,87 +226,90 @@ BEGIN the interview immediately after this instruction ends. Your first message 
         setup: {
           model: GEMINI_MODEL,
           generationConfig: {
-            responseModalities:  ["AUDIO"],
+            responseModalities: ["AUDIO"],
             speechConfig: {
               voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } }
-            },
-            inputAudioTranscription:  {},
-            outputAudioTranscription: {}
+            }
           },
-          systemInstruction: { parts: [{ text: si }] }
+          systemInstruction: { parts: [{ text: buildInstruction(session) }] }
         }
       }));
     };
 
     ws.onmessage = async (event) => {
-      if (!isMountedRef.current) return;
-      const raw  = event.data instanceof Blob ? await event.data.text() : (event.data as string);
+      if (!isMounted.current) return;
+      const raw = event.data instanceof Blob ? await event.data.text() : (event.data as string);
       let msg: Record<string, unknown>;
       try { msg = JSON.parse(raw); } catch { return; }
 
-      // Setup complete → start mic + cam
+      // Connected — start mic and cam
       if ("setupComplete" in msg) {
-        if (isMountedRef.current) {
-          setLiveStatus("connected");
-          await startMic();
-          await startCam();
-        }
+        setLiveStatus("connected");
+        await startMic();
+        await startCam();
         return;
       }
 
       const sc = msg.serverContent as Record<string, unknown> | undefined;
       if (!sc) return;
 
-      // AI audio + AI text transcript (outputAudioTranscription)
+      // AI audio
       const mt = sc.modelTurn as { parts?: Array<{ inlineData?: { mimeType?: string; data?: string }; text?: string }> } | undefined;
       if (mt?.parts) {
         for (const part of mt.parts) {
           if (part.inlineData?.mimeType?.startsWith("audio/pcm") && part.inlineData.data) {
             playPCM(part.inlineData.data);
           }
+          // AI text response (some chunks include text alongside audio)
+          if (part.text?.trim()) {
+            setTranscript(prev => {
+              // Merge with last AI entry if very recent (streaming words)
+              const last = prev[prev.length - 1];
+              if (last && last.role === "ai" && Date.now() - last.ts < 2000) {
+                return [...prev.slice(0, -1), { ...last, text: last.text + " " + part.text!.trim() }];
+              }
+              return [...prev, { role: "ai", text: part.text!.trim(), ts: Date.now() }];
+            });
+          }
         }
       }
 
-      // AI speech transcription (what ARIA said in text)
+      // AI output transcription (if returned by API)
       const outTx = sc.outputTranscription as { text?: string } | undefined;
-      if (outTx?.text) {
-        setTranscript(prev => [...prev, { role: "ai", text: outTx.text!, ts: Date.now() }]);
+      if (outTx?.text?.trim()) {
+        setTranscript(prev => {
+          const last = prev[prev.length - 1];
+          if (last && last.role === "ai" && Date.now() - last.ts < 2000) {
+            return [...prev.slice(0, -1), { ...last, text: last.text + " " + outTx.text!.trim() }];
+          }
+          return [...prev, { role: "ai", text: outTx.text!.trim(), ts: Date.now() }];
+        });
       }
 
-      // User speech transcription (what the candidate said in text)
-      const inTx = sc.inputTranscription as { text?: string } | undefined;
-      if (inTx?.text?.trim()) {
-        setTranscript(prev => [...prev, { role: "user", text: inTx.text!.trim(), ts: Date.now() }]);
-      }
-
-      // Interrupt signal
-      if (sc.interrupted) { setAiSpeaking(false); }
+      // Interrupt
+      if (sc.interrupted) setAiSpeaking(false);
     };
 
-    ws.onerror = (e) => {
-      console.error("Gemini WS error", e);
-      if (isMountedRef.current) setLiveStatus("error");
-    };
-    ws.onclose = (e) => {
-      console.warn("Gemini WS closed", e.code, e.reason);
-      if (isMountedRef.current) setLiveStatus("disconnected");
-    };
-  }, [session, buildInstruction, startMic, startCam, playPCM, addFlag]);
+    ws.onerror = (e) => { console.error("Gemini WS error", e); if (isMounted.current) setLiveStatus("error"); };
+    ws.onclose = (e) => { console.warn("Gemini WS closed", e.code, e.reason); if (isMounted.current) setLiveStatus("disconnected"); };
+  }, [session, buildInstruction, startMic, startCam, playPCM]);
 
-  // ── Cleanup on unmount ───────────────────────────────────────────────────
-  useEffect(() => {
-    return () => {
-      wsRef.current?.close();
-      processorRef.current?.disconnect();
-      micSrcRef.current?.disconnect();
-      micStreamRef.current?.getTracks().forEach(t => t.stop());
-      camStreamRef.current?.getTracks().forEach(t => t.stop());
-      audioCtxRef.current?.close();
-      if (frameTimerRef.current) clearInterval(frameTimerRef.current);
-    };
+  // ── Safe cleanup ────────────────────────────────────────────────────────
+  const cleanup = useCallback(() => {
+    recognitionRef.current?.stop();
+    wsRef.current?.close();
+    processorRef.current?.disconnect();
+    micSrcRef.current?.disconnect();
+    micStreamRef.current?.getTracks().forEach(t => t.stop());
+    camStreamRef.current?.getTracks().forEach(t => t.stop());
+    if (frameTimerRef.current) clearInterval(frameTimerRef.current);
+    const ctx = audioCtxRef.current;
+    if (ctx && ctx.state !== "closed") ctx.close().catch(() => {});
   }, []);
 
-  // ── Controls ─────────────────────────────────────────────────────────────
+  useEffect(() => () => { isMounted.current = false; cleanup(); }, [cleanup]);
+
+  // ── Controls ────────────────────────────────────────────────────────────
   const toggleMic = useCallback(() => {
     micStreamRef.current?.getAudioTracks().forEach(t => { t.enabled = !t.enabled; });
     setIsMicOn(v => !v);
@@ -304,26 +324,46 @@ BEGIN the interview immediately after this instruction ends. Your first message 
     } else { startCam(); }
   }, [isCamOn, startCam]);
 
+  // ── End session ─────────────────────────────────────────────────────────
   const handleEnd = useCallback(() => {
     if (!sessionId) return;
-    processorRef.current?.disconnect();
-    micSrcRef.current?.disconnect();
-    micStreamRef.current?.getTracks().forEach(t => t.stop());
-    camStreamRef.current?.getTracks().forEach(t => t.stop());
-    wsRef.current?.close();
-    audioCtxRef.current?.close();
-    if (frameTimerRef.current) clearInterval(frameTimerRef.current);
+    cleanup();
 
-    const apiFlags = flags.map(f => ({ type: "gaze_away" as const, timestamp: f.ts, description: f.desc, severity: "medium" as const }));
-    const apiTx    = transcript.map(t => ({ role: t.role, content: t.text, timestamp: t.ts }));
+    const tx = transcriptRef.current;
+    const bestMoments = pickBestMoments(tx);
+    const apiFlags    = flags.map(f => ({ type: "gaze_away" as const, timestamp: f.ts, description: f.desc, severity: "medium" as const }));
+    const apiTx       = tx.map(t => ({ role: t.role, content: t.text, timestamp: t.ts }));
+
+    // Attach best moments as a special marker so the evaluator sees them
+    const bestMomentsMarkers = bestMoments.length > 0
+      ? bestMoments.map(m => ({ role: "system" as unknown as "user", content: `[BEST_MOMENT]: ${m.text}`, timestamp: m.ts }))
+      : [];
 
     updateMutation.mutate(
-      { sessionId, data: { status: "completed", durationSeconds: time, proctorFlags: apiFlags as never, transcript: apiTx as never } },
-      { onSuccess: () => evaluateMutation.mutate({ sessionId }, { onSuccess: () => setLocation(`/portfolio/${sessionId}`), onError: () => setLocation(`/portfolio/${sessionId}`) }) }
+      {
+        sessionId,
+        data: {
+          status: "completed",
+          durationSeconds: time,
+          proctorFlags: apiFlags as never,
+          transcript: [...apiTx, ...bestMomentsMarkers] as never
+        }
+      },
+      {
+        onSuccess: () => {
+          evaluateMutation.mutate(
+            { sessionId },
+            {
+              onSuccess: () => setLocation(`/portfolio/${sessionId}`),
+              onError:   () => setLocation(`/portfolio/${sessionId}`),
+            }
+          );
+        },
+        onError: () => setLocation(`/portfolio/${sessionId}`),
+      }
     );
-  }, [sessionId, time, flags, transcript, updateMutation, evaluateMutation, setLocation]);
+  }, [sessionId, time, flags, cleanup, updateMutation, evaluateMutation, setLocation]);
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
   const fmt = (s: number) => `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
 
   const statusColor: Record<LiveStatus, string> = {
@@ -335,7 +375,6 @@ BEGIN the interview immediately after this instruction ends. Your first message 
     error: "ERROR", disconnected: "ENDED"
   };
 
-  // ── Loading ───────────────────────────────────────────────────────────────
   if (isLoading || !session) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -344,39 +383,38 @@ BEGIN the interview immediately after this instruction ends. Your first message 
     );
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-black text-white flex flex-col overflow-hidden">
 
-      {/* ─── Launch Overlay (shown before user clicks START) ─── */}
+      {/* ─── Launch Overlay ─── */}
       <AnimatePresence>
         {!launched && (
           <motion.div
             initial={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[999] bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center gap-8"
+            exit={{ opacity: 0, transition: { duration: 0.4 } }}
+            className="fixed inset-0 z-[999] bg-black/95 backdrop-blur-xl flex flex-col items-center justify-center gap-8"
           >
             <div className="relative">
-              <div className="absolute -inset-16 rounded-full blur-[80px]"
-                style={{ background: "radial-gradient(circle, rgba(0,200,255,0.2) 0%, transparent 70%)" }} />
+              <div className="absolute -inset-20 rounded-full blur-[100px]"
+                style={{ background: "radial-gradient(circle, rgba(0,200,255,0.18) 0%, transparent 70%)" }} />
               <img
                 src={`${import.meta.env.BASE_URL}images/avatar-placeholder.png`}
                 alt="ARIA"
-                className="w-40 h-40 object-contain relative"
+                className="w-44 h-44 object-contain relative drop-shadow-[0_0_30px_rgba(0,200,255,0.5)]"
               />
             </div>
             <div className="text-center">
-              <h1 className="text-4xl font-black font-display tracking-widest text-glow-cyan mb-2">ARIA</h1>
-              <p className="text-muted-foreground text-sm uppercase tracking-widest">AI Interview Conductor</p>
-              <p className="text-white/60 mt-3 text-sm">{session.jobTitle} · {session.industry} · {session.difficulty}</p>
+              <h1 className="text-5xl font-black font-display tracking-widest text-glow-cyan mb-2">ARIA</h1>
+              <p className="text-muted-foreground text-sm uppercase tracking-widest">AI Interview Conductor · Gemini 2.5</p>
+              <p className="text-white/50 mt-3 text-sm">{session.jobTitle} · {session.industry} · {session.difficulty}</p>
             </div>
             <p className="text-xs text-muted-foreground uppercase tracking-widest px-8 text-center max-w-sm">
-              Your browser will request microphone access. Allow it to speak with ARIA.
+              Allow microphone access when prompted. ARIA will greet you and begin immediately.
             </p>
             <button
               onClick={handleLaunch}
-              className="relative group flex items-center gap-3 px-10 py-5 rounded-2xl font-black text-lg uppercase tracking-widest overflow-hidden"
-              style={{ background: "linear-gradient(135deg, #00c8ff22, #7c3aed22)", border: "1px solid rgba(0,200,255,0.4)" }}
+              className="group relative flex items-center gap-3 px-12 py-5 rounded-2xl font-black text-xl uppercase tracking-widest overflow-hidden border border-primary/40"
+              style={{ background: "linear-gradient(135deg, rgba(0,200,255,0.1), rgba(124,58,237,0.1))" }}
             >
               <div className="absolute inset-0 bg-white/10 scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-300" />
               <Play className="w-6 h-6 fill-current text-primary relative" />
@@ -386,11 +424,15 @@ BEGIN the interview immediately after this instruction ends. Your first message 
         )}
       </AnimatePresence>
 
-      {/* ─── Top HUD ─── */}
+      {/* ─── HUD ─── */}
       <header className="absolute top-0 w-full z-50 p-4 flex justify-between items-start pointer-events-none">
         <div className="pointer-events-auto flex items-center gap-4 bg-black/70 backdrop-blur-md border border-white/10 px-5 py-2.5 rounded-full">
           <div className={`flex items-center gap-1.5 ${statusColor[liveStatus]}`}>
-            {liveStatus === "connected" ? <Wifi className="w-3 h-3" /> : liveStatus === "error" || liveStatus === "disconnected" ? <WifiOff className="w-3 h-3" /> : <Activity className="w-3 h-3 animate-pulse" />}
+            {liveStatus === "connected"
+              ? <Wifi className="w-3 h-3" />
+              : liveStatus === "error" || liveStatus === "disconnected"
+              ? <WifiOff className="w-3 h-3" />
+              : <Activity className="w-3 h-3 animate-pulse" />}
             <span className="font-mono text-xs font-bold uppercase tracking-widest">{statusLabel[liveStatus]}</span>
           </div>
           <div className="w-px h-4 bg-white/20" />
@@ -442,7 +484,7 @@ BEGIN the interview immediately after this instruction ends. Your first message 
                 className="w-80 h-80 object-contain drop-shadow-[0_0_40px_rgba(0,240,255,0.35)]"
               />
 
-              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-black/70 border border-primary/30 px-4 py-1.5 rounded-full backdrop-blur-sm">
+              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-black/70 border border-primary/30 px-4 py-1.5 rounded-full backdrop-blur-sm whitespace-nowrap">
                 {aiSpeaking ? (
                   <>
                     <span className="flex gap-0.5">
@@ -477,7 +519,7 @@ BEGIN the interview immediately after this instruction ends. Your first message 
               <video ref={webcamRef} autoPlay muted playsInline
                 className={`w-full h-full object-cover transition-opacity ${isCamOn ? "opacity-100" : "opacity-0"}`} />
               {!isCamOn && (
-                <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+                <div className="absolute inset-0 flex items-center justify-center">
                   <VideoOff className="w-8 h-8 text-gray-600" />
                 </div>
               )}
@@ -491,7 +533,7 @@ BEGIN the interview immediately after this instruction ends. Your first message 
           </div>
         </div>
 
-        {/* ─── Transcript Sidebar ─── */}
+        {/* ─── Transcript Panel ─── */}
         <div className="relative z-10 w-96 bg-black/70 backdrop-blur-2xl border-l border-white/10 ml-auto flex flex-col">
           <div className="p-5 border-b border-white/10 bg-gradient-to-b from-primary/10 to-transparent">
             <h3 className="font-display font-bold text-base text-primary tracking-widest uppercase flex items-center gap-2">
@@ -503,18 +545,25 @@ BEGIN the interview immediately after this instruction ends. Your first message 
           <div className="flex-1 p-4 overflow-y-auto space-y-3 max-h-[calc(100vh-220px)]">
             {transcript.length === 0 && (
               <div className="text-center text-gray-600 text-sm py-12">
-                {liveStatus === "connecting" ? "Connecting to ARIA..." : liveStatus === "connected" ? "ARIA will speak first..." : "Click BEGIN INTERVIEW to start"}
+                {liveStatus === "connecting" ? "Connecting to ARIA..." : liveStatus === "connected" ? "ARIA will greet you first..." : "Press BEGIN INTERVIEW to start"}
               </div>
             )}
             <AnimatePresence initial={false}>
               {transcript.map((entry, i) => (
                 <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                   className={`p-3 rounded-xl border text-sm leading-relaxed ${
-                    entry.role === "ai" ? "bg-white/5 border-white/10" : "bg-primary/10 border-primary/30 ml-6"
+                    entry.role === "ai"
+                      ? "bg-white/5 border-white/10"
+                      : "bg-primary/10 border-primary/30 ml-4"
                   }`}>
-                  <p className={`text-[10px] font-bold font-display tracking-wider mb-1 ${entry.role === "ai" ? "text-primary" : "text-white"}`}>
-                    {entry.role === "ai" ? "ARIA" : "YOU"}
-                  </p>
+                  <div className="flex items-center justify-between mb-1">
+                    <p className={`text-[10px] font-bold font-display tracking-wider ${entry.role === "ai" ? "text-primary" : "text-white"}`}>
+                      {entry.role === "ai" ? "ARIA" : "YOU"}
+                    </p>
+                    {entry.role === "user" && (entry.wordCount ?? 0) >= 15 && (
+                      <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" title="Strong response" />
+                    )}
+                  </div>
                   <p className="text-gray-300">{entry.text}</p>
                 </motion.div>
               ))}
@@ -526,11 +575,9 @@ BEGIN the interview immediately after this instruction ends. Your first message 
               <p className="text-[11px] text-red-400 font-bold uppercase tracking-widest flex items-center gap-1 mb-2">
                 <Shield className="w-3 h-3" /> Proctor Flags ({flags.length})
               </p>
-              <div className="space-y-1">
-                {flags.slice(-3).map((f, i) => (
-                  <p key={i} className="text-[11px] text-red-300/70">{f.desc}</p>
-                ))}
-              </div>
+              {flags.slice(-3).map((f, i) => (
+                <p key={i} className="text-[11px] text-red-300/70">{f.desc}</p>
+              ))}
             </div>
           )}
         </div>
@@ -557,7 +604,7 @@ BEGIN the interview immediately after this instruction ends. Your first message 
 
           <div className="w-px h-10 bg-white/10 mx-1" />
 
-          <button onClick={handleEnd} disabled={updateMutation.isPending || evaluateMutation.isPending || !launched}
+          <button onClick={handleEnd} disabled={!launched || updateMutation.isPending || evaluateMutation.isPending}
             className="px-8 h-14 rounded-xl flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white font-bold tracking-widest uppercase transition-colors disabled:opacity-50 text-sm">
             <PhoneOff className="w-4 h-4" />
             {updateMutation.isPending || evaluateMutation.isPending ? "Saving..." : "End & Evaluate"}

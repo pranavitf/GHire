@@ -17,6 +17,14 @@ type SessionItem = {
   difficulty: string;
 };
 
+const MOCK_SESSIONS_JON_DOE: SessionItem[] = [
+  { id: "mock-jd-1", jobTitle: "Senior Frontend Engineer", industry: "Technology", score: 88, date: "2026-03-10", verified: true, difficulty: "senior" },
+  { id: "mock-jd-2", jobTitle: "Full-Stack Developer", industry: "FinTech", score: 82, date: "2026-03-05", verified: true, difficulty: "mid" },
+  { id: "mock-jd-3", jobTitle: "React Native Developer", industry: "Healthcare", score: 75, date: "2026-02-28", verified: false, difficulty: "senior" },
+  { id: "mock-jd-4", jobTitle: "Software Architect", industry: "Enterprise", score: 91, date: "2026-02-20", verified: true, difficulty: "principal" },
+  { id: "mock-jd-5", jobTitle: "Backend Engineer", industry: "E-Commerce", score: 79, date: "2026-02-15", verified: true, difficulty: "mid" },
+];
+
 function ShareMenu({ session, onClose }: { session: SessionItem; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
   const user = getAuthUser("candidate");
@@ -139,8 +147,7 @@ function DashboardContent() {
   );
 
   const sessions: SessionItem[] = useMemo(() => {
-    if (!rawSessions) return [];
-    return rawSessions
+    const fromDb: SessionItem[] = (rawSessions ?? [])
       .filter((s: { status?: string }) => s.status === "completed")
       .map((s: { id: string; jobTitle: string; industry: string; overallScore?: number | null; completedAt?: string | null; proctorFlags?: unknown[]; difficulty?: string | null }) => ({
         id: s.id,
@@ -151,7 +158,16 @@ function DashboardContent() {
         verified: !s.proctorFlags || (s.proctorFlags as unknown[]).length === 0,
         difficulty: s.difficulty ?? "mid",
       }));
-  }, [rawSessions]);
+
+    const isJonDoe = user?.name?.toLowerCase().replace(/\s+/g, "") === "jondoe" ||
+                     user?.name?.toLowerCase().replace(/\s+/g, "") === "johndoe";
+    if (isJonDoe) {
+      const existingIds = new Set(fromDb.map(s => s.id));
+      const mockToAdd = MOCK_SESSIONS_JON_DOE.filter(m => !existingIds.has(m.id));
+      return [...fromDb, ...mockToAdd];
+    }
+    return fromDb;
+  }, [rawSessions, user]);
 
   const avgScore = sessions.length > 0
     ? Math.round(sessions.reduce((a, s) => a + s.score, 0) / sessions.length)

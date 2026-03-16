@@ -18,6 +18,174 @@ type CandidateRow = {
   transcript: { role: "ai" | "user"; text: string; ts: number }[];
 };
 
+const MOCK_CANDIDATES: CandidateRow[] = [
+  {
+    id: "mock-1",
+    name: "Elena Vasquez",
+    profession: "Full-Stack Engineer",
+    score: 94,
+    verified: true,
+    antiCheat: "clean",
+    highlight: "\"I architected a real-time collaborative editor using CRDTs and WebSocket sync, handling 50k concurrent users with sub-100ms latency across global regions.\"",
+    transcript: [
+      { role: "ai", text: "Tell me about a complex distributed system you've built.", ts: 0 },
+      { role: "user", text: "I architected a real-time collaborative editor using CRDTs and WebSocket sync, handling 50k concurrent users with sub-100ms latency across global regions.", ts: 15 },
+      { role: "ai", text: "How did you handle conflict resolution at that scale?", ts: 45 },
+      { role: "user", text: "We used operation-based CRDTs with vector clocks for causal ordering, and built a custom merge engine that could process 10k ops/sec per node.", ts: 60 },
+    ],
+  },
+  {
+    id: "mock-2",
+    name: "Marcus Chen",
+    profession: "ML Engineer",
+    score: 91,
+    verified: true,
+    antiCheat: "clean",
+    highlight: "\"I fine-tuned a transformer model for medical image classification that achieved 98.7% accuracy on the validation set, outperforming the previous SOTA by 3.2%.\"",
+    transcript: [
+      { role: "ai", text: "Walk me through your most impactful ML project.", ts: 0 },
+      { role: "user", text: "I fine-tuned a transformer model for medical image classification that achieved 98.7% accuracy on the validation set, outperforming the previous SOTA by 3.2%.", ts: 20 },
+      { role: "ai", text: "What was your approach to handling class imbalance in medical datasets?", ts: 50 },
+      { role: "user", text: "We combined focal loss with progressive resizing and used a custom augmentation pipeline including elastic deformations and stain normalization.", ts: 65 },
+    ],
+  },
+  {
+    id: "mock-3",
+    name: "Priya Sharma",
+    profession: "DevOps Lead",
+    score: 88,
+    verified: true,
+    antiCheat: "clean",
+    highlight: "\"I migrated our entire infrastructure from monolithic VMs to Kubernetes, reducing deployment time from 2 hours to 4 minutes with zero downtime.\"",
+    transcript: [
+      { role: "ai", text: "Describe a major infrastructure migration you led.", ts: 0 },
+      { role: "user", text: "I migrated our entire infrastructure from monolithic VMs to Kubernetes, reducing deployment time from 2 hours to 4 minutes with zero downtime.", ts: 18 },
+      { role: "ai", text: "How did you ensure zero downtime during the migration?", ts: 48 },
+      { role: "user", text: "Blue-green deployments with canary releases — we routed 1% of traffic to K8s initially and gradually shifted over 3 weeks while monitoring error rates.", ts: 62 },
+    ],
+  },
+  {
+    id: "mock-4",
+    name: "James O'Brien",
+    profession: "Frontend Architect",
+    score: 86,
+    verified: false,
+    antiCheat: "1 flag",
+    highlight: "\"I built a design system from scratch serving 12 product teams, with a component library that reduced feature development time by 40%.\"",
+    transcript: [
+      { role: "ai", text: "Tell me about a design system you've created.", ts: 0 },
+      { role: "user", text: "I built a design system from scratch serving 12 product teams, with a component library that reduced feature development time by 40%.", ts: 22 },
+      { role: "ai", text: "How did you handle versioning and adoption across teams?", ts: 55 },
+      { role: "user", text: "Semantic versioning with automated visual regression tests, plus a migration CLI that could upgrade components across repos in minutes.", ts: 70 },
+    ],
+  },
+  {
+    id: "mock-5",
+    name: "Aisha Patel",
+    profession: "Data Engineer",
+    score: 92,
+    verified: true,
+    antiCheat: "clean",
+    highlight: "\"I designed a real-time data pipeline processing 2TB daily using Apache Flink, with exactly-once semantics and sub-second end-to-end latency.\"",
+    transcript: [
+      { role: "ai", text: "Describe your experience with real-time data processing.", ts: 0 },
+      { role: "user", text: "I designed a real-time data pipeline processing 2TB daily using Apache Flink, with exactly-once semantics and sub-second end-to-end latency.", ts: 16 },
+      { role: "ai", text: "How did you achieve exactly-once semantics?", ts: 46 },
+      { role: "user", text: "Two-phase commit with Kafka transactions and idempotent sinks, plus custom checkpointing for state recovery.", ts: 58 },
+    ],
+  },
+  {
+    id: "mock-6",
+    name: "David Kim",
+    profession: "Security Engineer",
+    score: 89,
+    verified: true,
+    antiCheat: "clean",
+    highlight: "\"I discovered and responsibly disclosed a critical OAuth vulnerability affecting 200M+ users across three major platforms.\"",
+    transcript: [
+      { role: "ai", text: "Tell me about a significant security vulnerability you discovered.", ts: 0 },
+      { role: "user", text: "I discovered and responsibly disclosed a critical OAuth vulnerability affecting 200M+ users across three major platforms.", ts: 20 },
+      { role: "ai", text: "Walk me through your methodology for finding this.", ts: 52 },
+      { role: "user", text: "I built a custom fuzzer targeting token exchange flows and found a CSRF bypass in the redirect URI validation that allowed account takeover.", ts: 68 },
+    ],
+  },
+  {
+    id: "mock-7",
+    name: "Sofia Rodriguez",
+    profession: "Mobile Developer",
+    score: 85,
+    verified: true,
+    antiCheat: "clean",
+    highlight: "\"I rebuilt our React Native app with a custom navigation system that improved cold start time by 60% and reduced crash rate to 0.1%.\"",
+    transcript: [
+      { role: "ai", text: "Tell me about optimizing a mobile application.", ts: 0 },
+      { role: "user", text: "I rebuilt our React Native app with a custom navigation system that improved cold start time by 60% and reduced crash rate to 0.1%.", ts: 18 },
+      { role: "ai", text: "What specific techniques improved the cold start time?", ts: 50 },
+      { role: "user", text: "Lazy screen loading, Hermes engine optimization, inline requires, and pre-warming critical API calls during the splash screen.", ts: 64 },
+    ],
+  },
+  {
+    id: "mock-8",
+    name: "Ryan Foster",
+    profession: "Backend Engineer",
+    score: 78,
+    verified: false,
+    antiCheat: "2 flags",
+    highlight: "\"I scaled our API from 1k to 100k requests per second using a combination of caching strategies, connection pooling, and async processing.\"",
+    transcript: [
+      { role: "ai", text: "Describe how you handled a major scaling challenge.", ts: 0 },
+      { role: "user", text: "I scaled our API from 1k to 100k requests per second using a combination of caching strategies, connection pooling, and async processing.", ts: 25 },
+      { role: "ai", text: "What caching layers did you implement?", ts: 55 },
+      { role: "user", text: "Three-tier: CDN edge caching, Redis for hot data with LRU eviction, and application-level memoization with TTL-based invalidation.", ts: 72 },
+    ],
+  },
+  {
+    id: "mock-9",
+    name: "Nina Andersson",
+    profession: "Product Designer",
+    score: 90,
+    verified: true,
+    antiCheat: "clean",
+    highlight: "\"I led a complete redesign of the onboarding flow that increased user activation by 45% and reduced time-to-value from 12 minutes to 3 minutes.\"",
+    transcript: [
+      { role: "ai", text: "Tell me about a design that significantly impacted business metrics.", ts: 0 },
+      { role: "user", text: "I led a complete redesign of the onboarding flow that increased user activation by 45% and reduced time-to-value from 12 minutes to 3 minutes.", ts: 20 },
+      { role: "ai", text: "How did you validate your design decisions?", ts: 48 },
+      { role: "user", text: "A/B testing with 10k users per cohort, heat maps for click analysis, and weekly user interviews to capture qualitative feedback.", ts: 62 },
+    ],
+  },
+  {
+    id: "mock-10",
+    name: "Alex Thompson",
+    profession: "Cloud Architect",
+    score: 87,
+    verified: true,
+    antiCheat: "clean",
+    highlight: "\"I designed a multi-region active-active architecture on AWS that achieved 99.999% uptime and saved $2M annually in infrastructure costs.\"",
+    transcript: [
+      { role: "ai", text: "Describe your approach to high-availability architecture.", ts: 0 },
+      { role: "user", text: "I designed a multi-region active-active architecture on AWS that achieved 99.999% uptime and saved $2M annually in infrastructure costs.", ts: 22 },
+      { role: "ai", text: "How did you handle data consistency across regions?", ts: 54 },
+      { role: "user", text: "Eventually consistent with DynamoDB global tables for most data, and strongly consistent with Aurora Global for financial transactions.", ts: 68 },
+    ],
+  },
+  {
+    id: "mock-11",
+    name: "Jon Doe",
+    profession: "Software Architect",
+    score: 91,
+    verified: true,
+    antiCheat: "clean",
+    highlight: "\"I redesigned our monolithic Spring Boot application into 24 microservices, cutting deploy cycles from weekly to hourly with full CI/CD automation.\"",
+    transcript: [
+      { role: "ai", text: "Tell me about a large-scale architecture transformation you led.", ts: 0 },
+      { role: "user", text: "I redesigned our monolithic Spring Boot application into 24 microservices, cutting deploy cycles from weekly to hourly with full CI/CD automation.", ts: 18 },
+      { role: "ai", text: "How did you manage the transition without disrupting existing users?", ts: 50 },
+      { role: "user", text: "Strangler fig pattern — we routed traffic gradually per endpoint using an API gateway, with feature flags for instant rollback capability.", ts: 66 },
+    ],
+  },
+];
+
 function RecruiterContent() {
   const [, setLocation] = useLocation();
   const [selectedCandidate, setSelectedCandidate] = useState<CandidateRow | null>(null);
@@ -34,8 +202,7 @@ function RecruiterContent() {
   );
 
   const candidates: CandidateRow[] = useMemo(() => {
-    if (!rawSessions) return [];
-    return rawSessions
+    const fromDb: CandidateRow[] = (rawSessions ?? [])
       .filter((s: { status?: string; overallScore?: number | null }) => s.status === "completed" && s.overallScore != null)
       .map((s: { id: string; userName: string; jobTitle: string; overallScore?: number | null; proctorFlags?: unknown[]; transcript?: unknown[] }) => {
         const flags = (s.proctorFlags ?? []) as { type: string; description?: string; severity?: string }[];
@@ -60,6 +227,17 @@ function RecruiterContent() {
           })),
         };
       });
+
+    const all = [...fromDb, ...MOCK_CANDIDATES];
+    const bestByName = new Map<string, CandidateRow>();
+    for (const c of all) {
+      const key = c.name.toLowerCase();
+      const existing = bestByName.get(key);
+      if (!existing || c.score > existing.score) {
+        bestByName.set(key, c);
+      }
+    }
+    return Array.from(bestByName.values()).sort((a, b) => b.score - a.score);
   }, [rawSessions]);
 
   const toggleShortlist = useCallback((id: string) => {

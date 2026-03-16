@@ -3,14 +3,82 @@ import { Layout } from "@/components/Layout";
 import { useGetPortfolio } from "@workspace/api-client-react";
 import {
   ShieldCheck, Target, CheckCircle2, ChevronRight,
-  Activity, Share2, Star, Zap, TrendingUp, Award
+  Activity, Share2, Star, Zap, TrendingUp, Award,
+  Copy, Check, Download, ExternalLink
 } from "lucide-react";
 import { GlowingCard } from "@/components/GlowingCard";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { useState, useCallback } from "react";
 
 export default function Portfolio() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const { data: portfolio, isLoading } = useGetPortfolio(sessionId || "");
+  const [shareOpen, setShareOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const shareUrl = `${window.location.origin}${import.meta.env.BASE_URL}portfolio/${sessionId}`;
+
+  const handleCopyLink = useCallback(() => {
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [shareUrl]);
+
+  const handleExportCard = useCallback(() => {
+    if (!portfolio) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = 600;
+    canvas.height = 400;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const gradient = ctx.createLinearGradient(0, 0, 600, 400);
+    gradient.addColorStop(0, "#0a0e1a");
+    gradient.addColorStop(1, "#1a0e2e");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 600, 400);
+
+    ctx.strokeStyle = "rgba(0,200,255,0.3)";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(20, 20, 560, 360);
+
+    ctx.fillStyle = "#00c8ff";
+    ctx.font = "bold 14px sans-serif";
+    ctx.fillText("GHIRE · PROOF OF WORK", 40, 60);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 28px sans-serif";
+    ctx.fillText(portfolio.jobTitle, 40, 110);
+
+    ctx.fillStyle = "#888888";
+    ctx.font = "16px sans-serif";
+    ctx.fillText(`${portfolio.industry} Interview`, 40, 140);
+
+    const score = portfolio.evaluation.overallScore ?? 0;
+    ctx.fillStyle = score >= 85 ? "#4ade80" : score >= 70 ? "#00c8ff" : "#fbbf24";
+    ctx.font = "bold 72px sans-serif";
+    ctx.fillText(`${score}`, 40, 260);
+
+    ctx.fillStyle = "#666666";
+    ctx.font = "20px sans-serif";
+    ctx.fillText("/100", 40 + ctx.measureText(`${score}`).width + 8, 260);
+
+    if (portfolio.verifiedBadge) {
+      ctx.fillStyle = "#4ade80";
+      ctx.font = "bold 12px sans-serif";
+      ctx.fillText("✓ ANTI-CHEAT VERIFIED", 40, 310);
+    }
+
+    ctx.fillStyle = "rgba(255,255,255,0.15)";
+    ctx.font = "10px sans-serif";
+    ctx.fillText("ghire.app", 40, 360);
+
+    const link = document.createElement("a");
+    link.download = `ghire-${portfolio.jobTitle.replace(/\s+/g, "-").toLowerCase()}-${score}.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  }, [portfolio]);
 
   if (isLoading) {
     return (
@@ -69,9 +137,50 @@ export default function Portfolio() {
             </div>
             <p className="text-muted-foreground text-lg">{portfolio.industry} Interview · {new Date(portfolio.completedAt).toLocaleDateString("en-US", { dateStyle: "long" })}</p>
           </div>
-          <button className="px-6 py-3 rounded-lg border border-white/20 hover:border-primary hover:bg-primary/10 text-white flex items-center gap-2 transition-all uppercase tracking-widest text-sm font-bold">
-            <Share2 className="w-4 h-4" /> Share Portfolio
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShareOpen(!shareOpen)}
+              className="px-6 py-3 rounded-lg border border-white/20 hover:border-primary hover:bg-primary/10 text-white flex items-center gap-2 transition-all uppercase tracking-widest text-sm font-bold"
+            >
+              <Share2 className="w-4 h-4" /> Share Portfolio
+            </button>
+            <AnimatePresence>
+              {shareOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 5 }}
+                  className="absolute top-full mt-2 right-0 bg-[#0d1117] border border-white/10 rounded-xl p-4 w-64 z-50 shadow-2xl"
+                >
+                  <div className="space-y-2">
+                    <button
+                      onClick={handleCopyLink}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider text-white/70 hover:bg-white/5 hover:text-white transition-all"
+                    >
+                      {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copied ? "Link Copied!" : "Copy Share Link"}
+                    </button>
+                    <button
+                      onClick={handleExportCard}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider text-white/70 hover:bg-white/5 hover:text-white transition-all"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Export Card Image
+                    </button>
+                    <a
+                      href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider text-white/70 hover:bg-white/5 hover:text-white transition-all"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Share on LinkedIn
+                    </a>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </motion.div>
 
         {/* ─── Main Grid ─── */}

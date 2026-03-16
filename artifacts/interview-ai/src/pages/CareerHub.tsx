@@ -66,7 +66,7 @@ export default function CareerHub() {
     setShowModal(true);
   };
 
-  const handleStartArena = () => {
+  const handleStartInterview = () => {
     createMutation.mutate({
       data: {
         userId: "user_123",
@@ -314,7 +314,7 @@ export default function CareerHub() {
                 )}
 
                 <button
-                  onClick={handleStartArena}
+                  onClick={handleStartInterview}
                   disabled={createMutation.isPending}
                   className="w-full py-4 rounded-xl font-bold uppercase tracking-widest bg-gradient-to-r from-primary to-secondary text-white text-lg disabled:opacity-50"
                 >

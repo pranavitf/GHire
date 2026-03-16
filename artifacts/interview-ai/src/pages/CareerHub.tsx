@@ -3,10 +3,11 @@ import { useLocation } from "wouter";
 import { useDropzone } from "react-dropzone";
 import { Layout } from "@/components/Layout";
 import { GlowingCard } from "@/components/GlowingCard";
-import { UploadCloud, FileText, CheckCircle2, ChevronRight, Loader2, Play } from "lucide-react";
+import { UploadCloud, FileText, CheckCircle2, Loader2, Play, Clock, X } from "lucide-react";
 import { useParseResume, useCreateSession } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import type { CandidateContext } from "@workspace/api-client-react/src/generated/api.schemas";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function CareerHub() {
   const [, setLocation] = useLocation();
@@ -14,6 +15,7 @@ export default function CareerHub() {
   
   const [step, setStep] = useState<1 | 2>(1);
   const [candidateData, setCandidateData] = useState<CandidateContext | null>(null);
+  const [showModal, setShowModal] = useState(false);
   
   const parseMutation = useParseResume();
   const createMutation = useCreateSession();
@@ -22,7 +24,8 @@ export default function CareerHub() {
     industry: "Tech",
     jobTitle: "",
     difficulty: "mid" as "entry" | "mid" | "senior" | "executive",
-    sceneEnvironment: "tech" as "boardroom" | "hospital" | "studio" | "tech" | "legal" | "finance"
+    sceneEnvironment: "tech" as "boardroom" | "hospital" | "studio" | "tech" | "legal" | "finance",
+    durationMinutes: 5,
   });
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -45,7 +48,7 @@ export default function CareerHub() {
           setStep(2);
           toast({ title: "Resume parsed successfully", description: "AI Context configured." });
         },
-        onError: (err) => {
+        onError: () => {
           toast({ title: "Parsing failed", description: "Could not read PDF.", variant: "destructive" });
         }
       });
@@ -59,10 +62,14 @@ export default function CareerHub() {
     maxFiles: 1
   });
 
-  const handleStart = () => {
+  const handleOpenModal = () => {
+    setShowModal(true);
+  };
+
+  const handleStartArena = () => {
     createMutation.mutate({
       data: {
-        userId: "user_123", // mock user
+        userId: "user_123",
         userName: candidateData?.name || "Guest Candidate",
         industry: formData.industry,
         jobTitle: formData.jobTitle,
@@ -72,7 +79,8 @@ export default function CareerHub() {
       }
     }, {
       onSuccess: (session) => {
-        setLocation(`/interview/${session.id}`);
+        setShowModal(false);
+        setLocation(`/arena/${session.id}?duration=${formData.durationMinutes}`);
       },
       onError: () => {
         toast({ title: "Error", description: "Failed to initialize engine.", variant: "destructive" });
@@ -87,7 +95,6 @@ export default function CareerHub() {
         <p className="text-muted-foreground mb-12 uppercase tracking-widest text-sm font-semibold">Initialize your simulation context</p>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Left Column: Context Upload */}
           <div className="space-y-6">
             <div className="flex items-center gap-4 mb-4">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold font-display border ${step >= 1 ? 'border-primary bg-primary/20 text-primary box-glow-cyan' : 'border-muted text-muted'}`}>1</div>
@@ -112,7 +119,7 @@ export default function CareerHub() {
                   ) : (
                     <div className="flex flex-col items-center">
                       <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-4">
-                        <UploadCloud className="w-8 h-8 text-muted-foreground group-hover:text-primary transition-colors" />
+                        <UploadCloud className="w-8 h-8 text-muted-foreground" />
                       </div>
                       <p className="text-lg text-white font-medium mb-2">Drop your Resume PDF here</p>
                       <p className="text-sm text-muted-foreground">or click to browse local files</p>
@@ -156,7 +163,6 @@ export default function CareerHub() {
             </GlowingCard>
           </div>
 
-          {/* Right Column: Scene Config */}
           <div className={`space-y-6 transition-opacity duration-500 ${step === 2 ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
             <div className="flex items-center gap-4 mb-4">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold font-display border ${step === 2 ? 'border-secondary bg-secondary/20 text-secondary' : 'border-muted text-muted'}`}>2</div>
@@ -195,7 +201,7 @@ export default function CareerHub() {
                     <label className="block text-xs uppercase tracking-widest text-muted-foreground mb-2">3D Environment</label>
                     <select 
                       value={formData.sceneEnvironment}
-                      onChange={e => setFormData(prev => ({ ...prev, sceneEnvironment: e.target.value as any }))}
+                      onChange={e => setFormData(prev => ({ ...prev, sceneEnvironment: e.target.value as typeof formData.sceneEnvironment }))}
                       className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-secondary transition-all appearance-none"
                     >
                       <option value="tech">Tech Office</option>
@@ -209,10 +215,10 @@ export default function CareerHub() {
                 <div>
                   <label className="block text-xs uppercase tracking-widest text-muted-foreground mb-3">Difficulty Level</label>
                   <div className="grid grid-cols-4 gap-2">
-                    {["entry", "mid", "senior", "executive"].map((lvl) => (
+                    {(["entry", "mid", "senior", "executive"] as const).map((lvl) => (
                       <button
                         key={lvl}
-                        onClick={() => setFormData(prev => ({ ...prev, difficulty: lvl as any }))}
+                        onClick={() => setFormData(prev => ({ ...prev, difficulty: lvl }))}
                         className={`py-2 text-xs font-bold uppercase tracking-wider rounded-md border transition-all ${
                           formData.difficulty === lvl 
                             ? 'border-secondary bg-secondary/20 text-secondary' 
@@ -227,14 +233,14 @@ export default function CareerHub() {
 
                 <div className="pt-6 border-t border-white/10 mt-6">
                   <button
-                    onClick={handleStart}
-                    disabled={createMutation.isPending || !formData.jobTitle}
+                    onClick={handleOpenModal}
+                    disabled={!formData.jobTitle}
                     className="w-full relative group px-6 py-4 rounded-xl font-bold uppercase tracking-widest bg-secondary text-white overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
                     <span className="relative flex items-center justify-center gap-2">
-                      {createMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5 fill-current" />}
-                      Initialize Engine
+                      <Play className="w-5 h-5 fill-current" />
+                      Start Simulation
                     </span>
                   </button>
                 </div>
@@ -243,6 +249,92 @@ export default function CareerHub() {
           </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showModal && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[999] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4"
+            onClick={() => setShowModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-[#0a0e1a] border border-white/10 rounded-2xl p-8 max-w-md w-full relative"
+            >
+              <button onClick={() => setShowModal(false)} className="absolute top-4 right-4 text-white/40 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+              
+              <div className="text-center mb-8">
+                <div className="w-16 h-16 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center mx-auto mb-4">
+                  <Clock className="w-8 h-8 text-primary" />
+                </div>
+                <h2 className="text-2xl font-black text-white uppercase tracking-widest">Interview Settings</h2>
+                <p className="text-sm text-muted-foreground mt-2">{formData.jobTitle} · {formData.industry}</p>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-xs uppercase tracking-widest text-muted-foreground mb-3">Profession / Role</label>
+                  <input
+                    type="text"
+                    value={formData.jobTitle}
+                    onChange={e => setFormData(prev => ({ ...prev, jobTitle: e.target.value }))}
+                    className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-primary"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-3">
+                    <label className="text-xs uppercase tracking-widest text-muted-foreground">Duration</label>
+                    <span className="text-primary font-bold font-display text-lg">{formData.durationMinutes} min</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={2}
+                    max={15}
+                    value={formData.durationMinutes}
+                    onChange={e => setFormData(prev => ({ ...prev, durationMinutes: parseInt(e.target.value) }))}
+                    className="w-full h-2 bg-white/10 rounded-full appearance-none cursor-pointer accent-primary"
+                  />
+                  <div className="flex justify-between text-[10px] text-white/30 mt-1">
+                    <span>2 min</span>
+                    <span>15 min</span>
+                  </div>
+                </div>
+
+                {formData.durationMinutes >= 5 && (
+                  <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 flex items-start gap-2">
+                    <span className="text-yellow-400 text-sm mt-0.5">⚡</span>
+                    <p className="text-xs text-yellow-300/80">
+                      Curveball mode active — a high-stress scenario will be injected at the halfway mark to test your adaptability.
+                    </p>
+                  </div>
+                )}
+
+                <button
+                  onClick={handleStartArena}
+                  disabled={createMutation.isPending}
+                  className="w-full py-4 rounded-xl font-bold uppercase tracking-widest bg-gradient-to-r from-primary to-secondary text-white text-lg disabled:opacity-50"
+                >
+                  {createMutation.isPending ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Initializing...
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-center gap-2">
+                      <Play className="w-5 h-5 fill-current" />
+                      Enter Arena
+                    </span>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </Layout>
   );
 }

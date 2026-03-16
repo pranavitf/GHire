@@ -1,14 +1,18 @@
-# InterView.ai — Universal Career Simulation Platform
+# GHire — The Universal Hiring Network
 
 ## Overview
 
-InterView.ai is a premium, immersive AI-powered interview simulation platform. Features a dark futuristic UI with:
-- 3D interview room placeholder (ready for React Three Fiber integration)
+GHire is a premium, immersive AI-powered competitive hiring platform. Features a dark futuristic UI with:
+- Split-screen Arena interview room with code editor/whiteboard and 3D avatar
+- Gemini Live WebSocket voice conversations with real-time vision (reads code on screen)
+- Countdown timer with curveball stress injection at halfway mark
 - Gemini AI-powered resume parsing and interview evaluation
 - Live social leaderboard with industry filtering
-- Real-time activity feed
+- Real-time scrolling activity ticker on the hero page
 - Post-session spotlight portfolio with verified anti-cheat badges
-- Career Hub with drag-and-drop resume upload
+- Candidate Hub (portfolio dashboard) with past scores, weakness coaching, and LinkedIn-optimized sharing cards
+- Recruiter God-Mode dashboard with candidate data table and highlight playback
+- Career Hub with drag-and-drop resume upload and settings modal (profession + duration slider)
 
 ## Stack
 
@@ -19,7 +23,7 @@ InterView.ai is a premium, immersive AI-powered interview simulation platform. F
 - **Frontend**: React + Vite (artifacts/interview-ai) with Tailwind CSS, Framer Motion, Lucide React
 - **API framework**: Express 5 (artifacts/api-server)
 - **Database**: PostgreSQL + Drizzle ORM
-- **AI**: Gemini 2.5 Flash via Replit AI Integrations (resume parsing, session evaluation)
+- **AI**: Gemini 2.5 Flash (Live voice via WebSocket, evaluation via Replit AI Integrations proxy)
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec)
 
@@ -36,6 +40,9 @@ artifacts-monorepo/
 │   ├── api-zod/            # Generated Zod schemas from OpenAPI
 │   ├── db/                 # Drizzle ORM schema + DB connection
 │   └── integrations-gemini-ai/  # Gemini AI client
+├── Dockerfile.api          # API server Docker for Cloud Run (port 8080)
+├── Dockerfile.web          # Frontend nginx Docker for Cloud Run (port 8080)
+├── deploy-gcp.sh           # GCP Cloud Run deployment script
 ├── scripts/                # Utility scripts
 └── pnpm-workspace.yaml
 ```
@@ -62,24 +69,41 @@ artifacts-monorepo/
 
 ## Frontend Pages
 
-- `/` — Landing page with hero and career field cards
-- `/hub` — Career Hub with resume upload and simulation setup
-- `/interview/:sessionId` — Live interview session room
+- `/` — Hero page with GHire branding, animated split-screen demo, scrolling activity ticker
+- `/hub` — Career Hub with resume upload, simulation setup, and settings modal (profession + duration slider)
+- `/arena/:sessionId` — Split-screen Arena (50/50: avatar+webcam | code editor) with countdown timer, curveball injector, graceful exit
+- `/interview/:sessionId` — Legacy interview session room (full-screen avatar)
 - `/leaderboard` — Social leaderboard with live feed
-- `/portfolio/:sessionId` — Post-session spotlight portfolio
+- `/portfolio/:sessionId` — Post-session spotlight portfolio with score ring, best moments, strengths/improvements
+- `/portfolio` — Candidate Hub dashboard with past scores, weakness coaching, shareable proof-of-work card
+- `/recruiter` — Recruiter God-Mode with candidate data table, search/filter, highlight playback modal
 
 ## Key Features
 
 - Resume PDF base64 upload → Gemini extracts structured CandidateContext
-- Session creation with industry, job title, difficulty, 3D scene selection
+- Session creation with industry, job title, difficulty, 3D scene selection, duration (2-15 min)
+- Gemini Live WebSocket voice: real-time bidirectional audio with ARIA
+- Vision AI: webcam + code editor captured as frames sent to Gemini
+- Browser SpeechRecognition API captures user speech as text transcript
+- Countdown timer auto-ends session; curveball at halfway mark for 5+ min sessions
 - AI evaluation generates scores across 5 categories
+- Best moments extraction (top 3 longest user responses)
 - Proctoring flags tracked per session (gaze_away, external_voice, etc.)
 - Leaderboard auto-updates after session evaluation
 - Portfolio generated with "Verified Clean" anti-cheat badge
+- Recruiter dashboard with search, verified-only filter, and highlight modal
 
 ## Environment Variables
 
 - `DATABASE_URL` — PostgreSQL connection (auto-provisioned by Replit)
 - `AI_INTEGRATIONS_GEMINI_BASE_URL` — Gemini API proxy URL
 - `AI_INTEGRATIONS_GEMINI_API_KEY` — Gemini API key (managed by Replit)
+- `Gemini_API_Key` — Direct Gemini API key (injected to frontend via VITE_GEMINI_API_KEY)
 - `PORT` — Server port (auto-assigned)
+
+## Deployment
+
+- `Dockerfile.api` — API server builds to Cloud Run, port 8080
+- `Dockerfile.web` — Frontend builds to nginx, port 8080
+- `deploy-gcp.sh` — Automated GCP Cloud Run deploy script
+- Docker not available in Replit — deploy from local machine or Cloud Build trigger

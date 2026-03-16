@@ -8,7 +8,7 @@ API_SERVICE="interview-ai-api"
 WEB_SERVICE="interview-ai-web"
 COMMIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "latest")
 
-echo "🚀 Deploying InterView.ai to GCP project: $PROJECT_ID"
+echo "🚀 Deploying GHire to GCP project: $PROJECT_ID"
 echo "   Region: $REGION"
 echo "   Commit: $COMMIT_SHA"
 

@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Zap, Home, Briefcase, Trophy, LayoutDashboard } from "lucide-react";
+import { Zap, Home, Briefcase, Trophy, UserCheck, Shield } from "lucide-react";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -8,6 +8,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { name: "Home", href: "/", icon: Home },
     { name: "Career Hub", href: "/hub", icon: Briefcase },
     { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
+    { name: "Portfolio", href: "/portfolio", icon: UserCheck },
+    { name: "Recruiter", href: "/recruiter", icon: Shield },
   ];
 
   return (
@@ -18,7 +20,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center border border-primary/50 group-hover:box-glow-cyan transition-all">
               <Zap className="w-5 h-5 text-primary" />
             </div>
-            <span className="font-display font-bold text-xl tracking-widest text-glow-cyan">INTERVIEW<span className="text-white">.AI</span></span>
+            <span className="font-display font-bold text-xl tracking-widest text-glow-cyan">G<span className="text-white">HIRE</span></span>
           </Link>
 
           <nav className="hidden md:flex items-center gap-8">

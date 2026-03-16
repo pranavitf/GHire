@@ -1,0 +1,28 @@
+### SYSTEM OVERRIDE: PROJECT 'GHIRE' FINAL BUILD
+Act as a Principal Full-Stack Engineer. We are finalizing 'GHire: The Universal Hiring Network', a multimodal competitive hiring platform. Do NOT delete the existing React Three Fiber (R3F) 3D avatar, the webcam extraction logic, the Gemini Live WebSocket connection, or the existing "Start Simulation" button. Build around and enhance the existing core. Execute these requirements step-by-step:
+
+### 1. FRONTEND: THE HACKERRANK-STYLE ARENA & DEMOS
+- **Branding:** Globally replace all text referencing "InterView.ai" or "Universal Career Simulation" with "GHire: The Universal Hiring Network".
+- **Hero UI & Live Demos:** Keep the existing "Start Simulation" button. Next to or above it, add a high-fidelity `framer-motion` looping animation or a sleek auto-playing visual container. This should simulate the app in action: a split-screen showing the 3D avatar on one side and rotating "Live Demo" scenarios on the other (e.g., analyzing a code snippet, then switching to analyzing a medical chart). 
+- **Live Activity Feed:** Build a scrolling ticker below the hero showing mock real-time verified scores (e.g., "🔥 Sarah just earned a Verified Badge in B2B Sales").
+
+### 2. THE SPLIT-SCREEN WHITEBOARD (MULTIMODAL VISION)
+- **UI Layout:** In the active interview room (`/arena`), change the layout to a 50/50 split.
+  - **Left Panel:** The R3F 3D Avatar and the user's webcam feed.
+  - **Right Panel:** A lightweight, dark-mode code editor (use `react-simple-code-editor` or a styled monospace `<textarea>`).
+- **Vision Logic:** Do NOT send text payloads through the WebSocket. Rely entirely on the existing 1FPS screen-capture/webcam loop to capture the right panel so the Gemini Vision model can physically "read" the code as the user types.
+
+### 3. CORE LOGIC: TIMERS, EXITS & CURVEBALLS
+- **Interview Settings Modal:** When the user clicks the existing "Start Simulation" button, pop up a sleek modal asking for their "Profession" and a "Duration Slider" (2-15 mins) before routing them to the arena.
+- **Dynamic Timer & Graceful Exit (Critical Fix):** Implement a countdown timer in the arena. If the user clicks "End" early, intercept it. Cleanly close the WebSocket, take the partial transcript, send it to the Gemini 1.5 Pro evaluation endpoint, and route the user to the score page immediately. Do not discard the data.
+- **The "Curveball" Injector:** If the user selects a duration of 5+ minutes, set a frontend timeout. When `timeLeft === totalTime / 2`, silently inject a system message to the Gemini API: "Drop a sudden, high-stress scenario related to their field right now to test their adaptability."
+
+### 4. THE TWO-SIDED NETWORK: RECRUITERS & CANDIDATES
+- **Candidate Hub (`/portfolio`):** Build a dashboard showing past interview scores, AI-generated "Weaknesses to Improve", and a "Share Proof of Work" component. This component should be a sleek CSS card (Profession, Score, "Anti-Cheat Verified" badge) optimized for LinkedIn sharing.
+- **Recruiter God-Mode (`/recruiter`):** Create a secure route for employers. Display a data table of candidates. Columns: Name, Profession, Score, Anti-Cheat Status, and a "Play Highlight" button (opens a modal showing a mock transcript/video snippet).
+
+### 5. DEPLOYMENT CONFIGURATION
+- **Cloud Run Prep:** Ensure `Dockerfile.web` and `Dockerfile.api` expose the correct ports (e.g., 8080) for Google Cloud Run. 
+- **Script:** Ensure the `deploy-gcp.sh` script is intact in the root directory.
+
+**EXECUTION:** Generate the Implementation Plan first for my approval. Ensure all code is modular and UI components use Tailwind CSS for rapid styling.
